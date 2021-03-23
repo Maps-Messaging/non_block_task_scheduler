@@ -4,68 +4,15 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
   <modelVersion>4.0.0</modelVersion>
-  <dependencies>
-    <!-- https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core -->
-    <dependency>
-      <artifactId>log4j-core</artifactId>
-      <groupId>org.apache.logging.log4j</groupId>
-      <version>2.14.1</version>
-    </dependency>
-
-    <!-- https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-api -->
-    <dependency>
-      <artifactId>log4j-api</artifactId>
-      <groupId>org.apache.logging.log4j</groupId>
-      <version>2.14.1</version>
-    </dependency>
-
-    <!-- Junit5 -->
-    <dependency>
-      <artifactId>junit-jupiter-engine</artifactId>
-      <groupId>org.junit.jupiter</groupId>
-      <scope>test</scope>
-      <version>5.7.1</version>
-    </dependency>
-
-    <!-- Java micro benchmarking -->
-    <dependency>
-      <artifactId>jmh-core</artifactId>
-      <groupId>org.openjdk.jmh</groupId>
-      <scope>test</scope>
-      <version>1.19</version>
-    </dependency>
-
-    <dependency>
-      <artifactId>jmh-generator-annprocess</artifactId>
-      <groupId>org.openjdk.jmh</groupId>
-      <scope>test</scope>
-      <version>1.19</version>
-    </dependency>
-
-    <!-- Add annotations for not null -->
-    <dependency>
-      <artifactId>annotations</artifactId>
-      <groupId>org.jetbrains</groupId>
-      <version>16.0.2</version>
-    </dependency>
-
-    <dependency>
-      <artifactId>lombok</artifactId>
-      <groupId>org.projectlombok</groupId>
-      <version>1.18.18</version>
-    </dependency>
-    <dependency>
-      <artifactId>jsr305</artifactId>
-      <groupId>com.google.code.findbugs</groupId>
-      <version>3.0.2</version>
-    </dependency>
-
-  </dependencies>
+  <groupId>io.mapsmessaging</groupId>
   <artifactId>Non_Block_Task_Scheduler</artifactId>
-  <description>A non-block task queue and task scheduler</description>
+  <version>1.0.0</version>
   <packaging>jar</packaging>
 
-  <groupId>io.mapsmessaging</groupId>
+  <name>Maps Messaging Task Queue</name>
+  <description>A non-block task queue and task scheduler</description>
+  <url>http://www.mapsmessaging.io</url>
+
   <licenses>
     <license>
       <distribution>repo</distribution>
@@ -78,13 +25,10 @@
       <url>https://commonsclause.com/</url>
     </license>
   </licenses>
-  <name>Maps Messaging Task Queue</name>
 
   <scm>
     <url>https://github.com/Maps-Messaging/Non_Block_Task_Scheduler.git</url>
   </scm>
-
-  <url>http://www.mapsmessaging.io</url>
 
   <properties>
     <maven.compiler.source>13</maven.compiler.source>
@@ -198,6 +142,62 @@
     </plugins>
   </build>
 
-  <version>1.0.0</version>
+  <dependencies>
+    <!-- https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core -->
+    <dependency>
+      <artifactId>log4j-core</artifactId>
+      <groupId>org.apache.logging.log4j</groupId>
+      <version>2.14.1</version>
+    </dependency>
+
+    <!-- https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-api -->
+    <dependency>
+      <artifactId>log4j-api</artifactId>
+      <groupId>org.apache.logging.log4j</groupId>
+      <version>2.14.1</version>
+    </dependency>
+
+    <!-- Junit5 -->
+    <dependency>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <groupId>org.junit.jupiter</groupId>
+      <scope>test</scope>
+      <version>5.7.1</version>
+    </dependency>
+
+    <!-- Java micro benchmarking -->
+    <dependency>
+      <artifactId>jmh-core</artifactId>
+      <groupId>org.openjdk.jmh</groupId>
+      <scope>test</scope>
+      <version>1.19</version>
+    </dependency>
+
+    <dependency>
+      <artifactId>jmh-generator-annprocess</artifactId>
+      <groupId>org.openjdk.jmh</groupId>
+      <scope>test</scope>
+      <version>1.19</version>
+    </dependency>
+
+    <!-- Add annotations for not null -->
+    <dependency>
+      <artifactId>annotations</artifactId>
+      <groupId>org.jetbrains</groupId>
+      <version>16.0.2</version>
+    </dependency>
+
+    <dependency>
+      <artifactId>lombok</artifactId>
+      <groupId>org.projectlombok</groupId>
+      <version>1.18.18</version>
+    </dependency>
+    <dependency>
+      <artifactId>jsr305</artifactId>
+      <groupId>com.google.code.findbugs</groupId>
+      <version>3.0.2</version>
+    </dependency>
+
+  </dependencies>
 
 </project>
