@@ -3,6 +3,7 @@
   xmlns="http://maven.apache.org/POM/4.0.0"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
+  <modelVersion>4.0.0</modelVersion>
   <dependencies>
     <!-- https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core -->
     <dependency>
@@ -60,9 +61,11 @@
     </dependency>
 
   </dependencies>
+  <artifactId>Non_Block_Task_Scheduler</artifactId>
   <description>A non-block task queue and task scheduler</description>
-  <groupId>io.mapsmessaging</groupId>
+  <packaging>jar</packaging>
 
+  <groupId>io.mapsmessaging</groupId>
   <licenses>
     <license>
       <distribution>repo</distribution>
@@ -75,11 +78,13 @@
       <url>https://commonsclause.com/</url>
     </license>
   </licenses>
-  <modelVersion>4.0.0</modelVersion>
-  <artifactId>Non_Block_Task_Scheduler</artifactId>
-
   <name>Maps Messaging Task Queue</name>
-  <packaging>jar</packaging>
+
+  <scm>
+    <url>https://github.com/Maps-Messaging/Non_Block_Task_Scheduler.git</url>
+  </scm>
+
+  <url>http://www.mapsmessaging.io</url>
 
   <properties>
     <maven.compiler.source>13</maven.compiler.source>
@@ -108,10 +113,6 @@
       **/*Test.*,**/*IT.*, **.*JMH.*
     </sonar.test.exclusions>
   </properties>
-
-  <scm>
-    <url>https://github.com/Maps-Messaging/Non_Block_Task_Scheduler.git</url>
-  </scm>
 
   <build>
     <plugins>
@@ -197,7 +198,6 @@
     </plugins>
   </build>
 
-  <url>http://www.mapsmessaging.io</url>
-
   <version>1.0.0</version>
+
 </project>
