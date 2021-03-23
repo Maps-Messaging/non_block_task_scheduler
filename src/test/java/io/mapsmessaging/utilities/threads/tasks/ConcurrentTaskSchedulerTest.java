@@ -35,6 +35,35 @@ abstract class ConcurrentTaskSchedulerTest {
 
 
   @Test
+  void checkDomain() throws IOException {
+    ConcurrentTaskScheduler<Object> taskScheduler = create();
+    AtomicBoolean ok = new AtomicBoolean(false);
+    taskScheduler.addTask(new FutureTask<>(new Callable<Object>(){
+      @Override
+      public Object call() throws Exception {
+        ThreadLocalContext.checkDomain("test");
+        ok.set(true);
+        return true;
+      }
+    }));
+    WaitForState.waitFor(100, TimeUnit.MILLISECONDS, ()->ok.get());
+
+    taskScheduler.addTask(new FutureTask<>(new Callable<Object>(){
+      @Override
+      public Object call() throws Exception {
+        try {
+          ThreadLocalContext.checkDomain("should_fail");
+          ok.set(true);
+        } catch (Exception exception) {
+          ok.set(false);
+        }
+        return true;
+      }
+    }));
+    WaitForState.waitFor(100, TimeUnit.MILLISECONDS, ()-> !ok.get());
+  }
+
+  @Test
   void validation() {
     ConcurrentTaskScheduler<Object> taskScheduler = create();
     assertThrows(Exception.class, ()->taskScheduler.addTask(null));
