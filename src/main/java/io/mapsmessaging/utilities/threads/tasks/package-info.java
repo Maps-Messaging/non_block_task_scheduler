@@ -18,10 +18,6 @@
 /**
  * This package contains all the classes and interfaces required for a Task Scheduler.
  *
- * ToDo: Add documentation on the use of the Domain
- *       Add documentation on how the scheduler works wrt threads - (Diagram)
- *       Add overview
- *
  *  @since 1.0
  *  @author Matthew Buckton
  *  @version 1.0

@@ -95,7 +95,7 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
     // If a Future Task is closing this scheduler then we simply clear the queue and cancel any tasks
     // that may still be active
     String localDomain = (String) context.get(DOMAIN);
-    ThreadStateContext threadStateContext = ThreadLocalContext.get();
+    var threadStateContext = ThreadLocalContext.get();
     if(threadStateContext != null){
       String threadDomain = (String)threadStateContext.get(DOMAIN);
       if(localDomain != null && localDomain.equalsIgnoreCase(threadDomain)){
@@ -182,7 +182,7 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
    * Task Loop that runs until the queue is empty or offloaded to a dedicated thread
    */
   private void taskRun(int maxTaskExecutions) {
-    int runnerCount = 0;
+    var runnerCount = 0;
     FutureTask<V> task = poll();
     while (task != null) {
       task.run();

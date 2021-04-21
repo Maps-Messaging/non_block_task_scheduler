@@ -53,7 +53,7 @@ public class PriorityConcurrentTaskScheduler<V> extends ConcurrentTaskScheduler<
   public PriorityConcurrentTaskScheduler(@NonNull @NotNull String domain, int prioritySize) {
     super(domain);
     queues = new ArrayList<>();
-    for(int x=0;x<prioritySize;x++){
+    for(var x=0;x<prioritySize;x++){
       queues.add(new ConcurrentLinkedQueue<>());
     }
   }

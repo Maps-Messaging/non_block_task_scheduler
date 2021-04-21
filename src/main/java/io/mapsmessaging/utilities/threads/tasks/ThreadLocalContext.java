@@ -66,7 +66,7 @@ public class ThreadLocalContext {
 
   public static void checkDomain(@NonNull @NotNull String domain){
     if(DEBUG_DOMAIN) {
-      boolean response = false;
+      var response = false;
       ThreadStateContext context = ThreadLocalContext.get();
       Object check = "";
       if (context != null) {

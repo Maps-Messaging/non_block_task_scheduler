@@ -54,7 +54,7 @@ public class SimpleTaskScheduler {
     totalExecuted = new LongAdder();
     scheduledTasks = new ConcurrentSkipListMap<>();
     executor = Executors.newWorkStealingPool();
-    ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(1);
+    var scheduler = new ScheduledThreadPoolExecutor(1);
     scheduler.setRemoveOnCancelPolicy(true);
     scheduler.scheduleAtFixedRate(new TaskExecutor(), TICK_PERIOD, TICK_PERIOD, TimeUnit.MILLISECONDS);
   }
