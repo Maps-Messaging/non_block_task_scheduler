@@ -170,7 +170,7 @@
       <artifactId>jmh-core</artifactId>
       <groupId>org.openjdk.jmh</groupId>
       <scope>test</scope>
-      <version>1.19</version>
+      <version>1.33</version>
     </dependency>
 
     <dependency>
