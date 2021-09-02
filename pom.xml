@@ -101,7 +101,7 @@
           </execution>
         </executions>
         <groupId>org.jacoco</groupId>
-        <version>0.8.5</version>
+        <version>0.8.7</version>
       </plugin>
 
       <!-- Setup the JUnit tests runner -->
