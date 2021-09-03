@@ -171,6 +171,9 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
       if(logContext != null) {
         ThreadContext.putAll(logContext);
       }
+      else{
+        ThreadContext.clearAll();
+      }
       if(originalDomain != null){
         ThreadLocalContext.set(originalDomain);
       }
@@ -220,7 +223,12 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
     public void run(){
       String threadName = Thread.currentThread().getName();
       Thread.currentThread().setName("TaskQueue_OffLoad");
-      ThreadContext.putAll(context); // Ensure the logging thread context is copied over
+      if(context != null) {
+        ThreadContext.putAll(context); // Ensure the logging thread context is copied over
+      }
+      else{
+        ThreadContext.clearAll();
+      }
       internalExecuteQueue(MAX_TASK_EXECUTION_SCHEDULED_THREAD);
       Thread.currentThread().setName(threadName);
     }
