@@ -168,7 +168,9 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
     try {
       taskRun(maxTaskExecutions);
     } finally {
-      ThreadContext.putAll(logContext);
+      if(logContext != null) {
+        ThreadContext.putAll(logContext);
+      }
       if(originalDomain != null){
         ThreadLocalContext.set(originalDomain);
       }
