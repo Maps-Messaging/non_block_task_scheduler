@@ -164,7 +164,9 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
   private void internalExecuteQueue(int maxTaskExecutions) {
     Map<String, String> logContext = ThreadContext.getContext();
     ThreadStateContext originalDomain = ThreadLocalContext.get();
-    ThreadLocalContext.set(context);
+    if(context != null) {
+      ThreadLocalContext.set(context);
+    }
     try {
       taskRun(maxTaskExecutions);
     } finally {
@@ -172,7 +174,7 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
         ThreadContext.putAll(logContext);
       }
       else{
-        ThreadContext.clearAll();
+        ThreadContext.clearMap();
       }
       if(originalDomain != null){
         ThreadLocalContext.set(originalDomain);
@@ -227,7 +229,7 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
         ThreadContext.putAll(context); // Ensure the logging thread context is copied over
       }
       else{
-        ThreadContext.clearAll();
+        ThreadContext.clearMap();
       }
       internalExecuteQueue(MAX_TASK_EXECUTION_SCHEDULED_THREAD);
       Thread.currentThread().setName(threadName);
