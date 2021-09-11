@@ -18,6 +18,7 @@
 
 package io.mapsmessaging.utilities.threads.tasks;
 
+import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import lombok.NonNull;
 import org.jetbrains.annotations.NotNull;
@@ -25,14 +26,12 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Simple interface for a task queue that offers a priority level for each task queued
  *
- * @param <V> - is what will be returned by the future on completion of the task
- *
  *  @since 1.0
  *  @author Matthew Buckton
- *  @version 1.0
+ *  @version 2.0
  */
-public interface PriorityTaskScheduler<V> extends TaskScheduler<V> {
+public interface PriorityTaskScheduler extends TaskScheduler {
 
-  void addTask(@NonNull @NotNull  FutureTask<V> task, int priority);
+  <T> Future<T> submit(@NonNull @NotNull FutureTask<T> task, int priority);
 
 }

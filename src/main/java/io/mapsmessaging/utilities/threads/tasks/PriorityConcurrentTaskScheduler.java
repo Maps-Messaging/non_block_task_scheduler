@@ -33,16 +33,14 @@ import java.util.concurrent.FutureTask;
  * This class implements a ConcurrentTaskScheduler with a priority based concurrent queue. This enables tasks with a higher priority to
  * take precedence over tasks with a lower priority.
  *
- * @param <V> - is what will be returned by the future on completion of the task
- *
  * @since 1.0
  * @author Matthew Buckton
- * @version 1.0
+ * @version 2.0
  */
 @ToString
-public class PriorityConcurrentTaskScheduler<V> extends ConcurrentTaskScheduler<V> implements PriorityTaskScheduler<V> {
+public class PriorityConcurrentTaskScheduler extends ConcurrentTaskScheduler implements PriorityTaskScheduler {
 
-  private final List<Queue<FutureTask<V>>> queues;
+  private final List<Queue<FutureTask<?>>> queues;
 
   /**
    * Constructs the concurrent priority queue, specifying the depth of the priority and the unique domain name that this task queue manages
@@ -58,13 +56,11 @@ public class PriorityConcurrentTaskScheduler<V> extends ConcurrentTaskScheduler<
     }
   }
 
-  @Override
-  public void addTask(@NonNull @NotNull FutureTask<V> task) {
-    addTask(task, 0);
+  protected <T> FutureTask<T> addTask(@NonNull @NotNull FutureTask<T> task) {
+    return  submit(task, 0);
   }
 
-  @Override
-  public void addTask(@NonNull @NotNull FutureTask<V> task, int priority) {
+  public <T> FutureTask<T> submit(@NonNull @NotNull FutureTask<T> task, int priority) {
     if(!shutdown) {
       queues.get(priority).add(task);
       executeQueue();
@@ -72,11 +68,12 @@ public class PriorityConcurrentTaskScheduler<V> extends ConcurrentTaskScheduler<
     else{
       task.cancel(true);
     }
+    return task;
   }
 
   @Override
   public boolean isEmpty(){
-    for(Queue<FutureTask<V>> queue:queues){
+    for(Queue<FutureTask<?>> queue:queues){
       if(!queue.isEmpty()){
         return false;
       }
@@ -85,9 +82,9 @@ public class PriorityConcurrentTaskScheduler<V> extends ConcurrentTaskScheduler<
   }
 
   @Override
-  protected @Nullable FutureTask<V> poll(){
-    for(Queue<FutureTask<V>> queue:queues){
-      FutureTask<V> task = queue.poll();
+  protected @Nullable FutureTask<?> poll(){
+    for(Queue<FutureTask<?>> queue:queues){
+      FutureTask<?> task = queue.poll();
       if(task != null){
         return task;
       }

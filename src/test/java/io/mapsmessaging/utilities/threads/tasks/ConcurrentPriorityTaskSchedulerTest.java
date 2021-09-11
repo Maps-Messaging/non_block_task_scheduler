@@ -20,7 +20,7 @@ package io.mapsmessaging.utilities.threads.tasks;
 
 class ConcurrentPriorityTaskSchedulerTest extends ConcurrentTaskSchedulerTest {
   @Override
-  protected ConcurrentTaskScheduler<Object> create() {
-    return new PriorityConcurrentTaskScheduler<>("test", 16);
+  protected ConcurrentTaskScheduler create() {
+    return new PriorityConcurrentTaskScheduler("test", 16);
   }
 }

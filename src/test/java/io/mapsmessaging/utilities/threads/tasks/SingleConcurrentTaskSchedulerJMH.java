@@ -34,14 +34,14 @@ import org.openjdk.jmh.annotations.Threads;
 
 @State(Scope.Benchmark)
 public class SingleConcurrentTaskSchedulerJMH {
-  ConcurrentTaskScheduler<Object> queue;
+  ConcurrentTaskScheduler queue;
   LongAdder adder;
 
 
   @Setup
   public void createState(){
     System.err.println("New Queue created");
-    queue = new SingleConcurrentTaskScheduler<>("testTask");
+    queue = new SingleConcurrentTaskScheduler("testTask");
     adder = new LongAdder();
   }
 

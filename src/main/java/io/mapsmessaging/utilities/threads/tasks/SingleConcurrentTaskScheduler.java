@@ -29,16 +29,14 @@ import org.jetbrains.annotations.Nullable;
 /**
  * This class implements a single concurrent task queue
  *
- * @param <V> - is what will be returned by the future on completion of the task
- *
  *  @since 1.0
  *  @author Matthew Buckton
- *  @version 1.0
+ *  @version 2.0
  */
 @ToString
-public class SingleConcurrentTaskScheduler<V> extends ConcurrentTaskScheduler<V> {
+public class SingleConcurrentTaskScheduler extends ConcurrentTaskScheduler {
 
-  private final Queue<FutureTask<V>> queue;
+  private final Queue<FutureTask<?>> queue;
 
   /**
    * Constructs a single queue based task queue
@@ -50,8 +48,7 @@ public class SingleConcurrentTaskScheduler<V> extends ConcurrentTaskScheduler<V>
     queue = new ConcurrentLinkedQueue<>();
   }
 
-  @Override
-  public void addTask(@NonNull @NotNull FutureTask<V> task) {
+  protected <T> FutureTask<T> addTask(@NonNull @NotNull FutureTask<T> task) {
     if(!shutdown) {
       queue.add(task);
       executeQueue();
@@ -59,6 +56,7 @@ public class SingleConcurrentTaskScheduler<V> extends ConcurrentTaskScheduler<V>
     else{
       task.cancel(true); // Mark it as cancelled
     }
+    return task;
   }
 
   @Override
@@ -67,9 +65,10 @@ public class SingleConcurrentTaskScheduler<V> extends ConcurrentTaskScheduler<V>
   }
 
   @Override
-  protected @Nullable FutureTask<V> poll(){
+  protected @Nullable FutureTask<?> poll(){
     return queue.poll();
   }
+
 }
 
 

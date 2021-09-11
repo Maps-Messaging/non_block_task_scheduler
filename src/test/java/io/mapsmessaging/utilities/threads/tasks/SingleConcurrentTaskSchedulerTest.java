@@ -21,7 +21,7 @@ package io.mapsmessaging.utilities.threads.tasks;
 class SingleConcurrentTaskSchedulerTest extends ConcurrentTaskSchedulerTest {
 
   @Override
-  protected ConcurrentTaskScheduler<Object> create() {
-    return new SingleConcurrentTaskScheduler<>("Test");
+  protected ConcurrentTaskScheduler create() {
+    return new SingleConcurrentTaskScheduler("Test");
   }
 }

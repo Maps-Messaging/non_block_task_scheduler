@@ -18,21 +18,19 @@
 
 package io.mapsmessaging.utilities.threads.tasks;
 
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.ExecutorService;
 
 /**
  * This interface defines the standard Task Scheduler functions
- *
- * @param <V> - is what will be returned by the future on completion of the task
  *
  *  @since 1.0
  *  @author Matthew Buckton
  *  @version 1.0
  */
-public interface TaskScheduler<V> {
-  void shutdown(boolean wait);
-  void addTask(FutureTask<V> task);
+public interface TaskScheduler extends ExecutorService {
+
   boolean isEmpty();
+
   long getOutstanding();
   long getTotalTasksQueued();
   long getOffloadCount();

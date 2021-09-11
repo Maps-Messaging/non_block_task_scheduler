@@ -19,7 +19,7 @@ package io.mapsmessaging.utilities.threads.tasks.examples;
 
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.Future;
 import java.util.concurrent.locks.LockSupport;
 
 public class Caller extends Thread {
@@ -49,7 +49,7 @@ public class Caller extends Thread {
     countDownLatch.countDown();
   }
 
-  private void waitOnFuture(FutureTask<Long> task){
+  private void waitOnFuture(Future<Long> task){
     // We just wait here, it is up to your application to decide what it should do while it waits
     // for the task to complete
     while(!task.isDone() && !task.isCancelled()){

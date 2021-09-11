@@ -18,11 +18,20 @@
 
 package io.mapsmessaging.utilities.threads.tasks;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import lombok.NonNull;
+import lombok.SneakyThrows;
 import lombok.ToString;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
@@ -49,14 +58,12 @@ import io.mapsmessaging.utilities.threads.SimpleTaskScheduler;
  * The <code>domain</code> field is used by tasks to ensure that the executing thread is meant to be running the code, offering the ability to ensure no code
  * by passes the task queue mechanism.
  *
- * @param <V> - is what will be returned by the future on completion of the task
- *
  *  @since 1.0
  *  @author Matthew Buckton
- *  @version 1.0
+ *  @version 2.0
  */
 @ToString
-public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
+public abstract class ConcurrentTaskScheduler implements TaskScheduler {
 
   //Allow a maximum of so many tasks when the thread is external to the task scheduler
   protected static final int MAX_TASK_EXECUTION_EXTERNAL_THREAD = 10;
@@ -73,6 +80,8 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
 
   protected volatile long maxOutstanding;
   protected volatile boolean shutdown;
+  protected volatile boolean terminated;
+
 
 
   protected ConcurrentTaskScheduler(@NonNull @NotNull String domain) {
@@ -87,9 +96,18 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
     shutdown = false;
   }
 
+  @Override
+  public boolean isShutdown(){
+    return shutdown;
+  }
 
   @Override
-  public void shutdown(boolean wait){
+  public boolean isTerminated(){
+    return terminated;
+  }
+
+  @Override
+  public void shutdown(){
     shutdown = true;
     //
     // If a Future Task is closing this scheduler then we simply clear the queue and cancel any tasks
@@ -100,14 +118,134 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
       String threadDomain = (String)threadStateContext.get(DOMAIN);
       if(localDomain != null && localDomain.equalsIgnoreCase(threadDomain)){
         // OK we are running a task that is closing this task scheduler, so we can clear out the queue
-        FutureTask<V> task = poll();
+        Future<?> task = poll();
         while (task != null) {
-          task.cancel(true);
+          if(task instanceof FutureTask){
+            ((FutureTask)task).cancel(true);
+          }
+          task = poll();
+        }
+        terminated = true;
+      }
+    }
+  }
+
+  @Override
+  public List<Runnable> shutdownNow(){
+    shutdown = true;
+    //
+    // If a Future Task is closing this scheduler then we simply clear the queue and cancel any tasks
+    // that may still be active
+    List<Runnable> active = new ArrayList<>();
+    String localDomain = (String) context.get(DOMAIN);
+    var threadStateContext = ThreadLocalContext.get();
+    if(threadStateContext != null){
+      String threadDomain = (String)threadStateContext.get(DOMAIN);
+      if(localDomain != null && localDomain.equalsIgnoreCase(threadDomain)){
+        // OK we are running a task that is closing this task scheduler, so we can clear out the queue
+        Runnable task = poll();
+        while (task != null) {
+          active.add(task);
           task = poll();
         }
       }
     }
+    return active;
   }
+
+  public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException{
+    long waitTill = System.currentTimeMillis() + unit.toMillis(timeout);
+
+    // ToDo wait till tasks are complete OR timeout has occured
+    return true;
+  }
+
+  @NotNull
+  @Override
+  public <T> Future<T> submit(@NotNull Callable<T> task) {
+    return addTask(new FutureTask<>(task));
+  }
+
+  @NotNull
+  @Override
+  public <T> Future<T> submit(@NotNull Runnable task, T result) {
+    return addTask(new FutureTask<>(task, result));
+  }
+
+  @NotNull
+  @Override
+  public  Future<?> submit(@NotNull Runnable task) {
+    return addTask(new FutureTask<VoidResponse>(task, new VoidResponse()));
+  }
+
+  @SneakyThrows
+  @NotNull
+  @Override
+  public <T> List<Future<T>> invokeAll(@NotNull Collection<? extends Callable<T>> tasks) throws InterruptedException {
+    List<Future<T>> response = submitList(tasks);
+    List<Future<T>> waiting = new ArrayList<>(response);
+    while(!waiting.isEmpty()){
+      Future<T> future = waiting.remove(0);
+      future.get();
+    }
+    return response;
+  }
+
+  @SneakyThrows
+  @NotNull
+  @Override
+  public <T> List<Future<T>> invokeAll(@NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit) throws InterruptedException {
+    long totalTimeout = unit.toMillis(timeout);
+    List<Future<T>> response = submitList(tasks);
+    List<Future<T>> waiting = new ArrayList<>(response);
+    while(!waiting.isEmpty()){
+      Future<T> future = waiting.remove(0);
+      long delay = System.currentTimeMillis();
+      future.get(totalTimeout, TimeUnit.MILLISECONDS);
+      delay = System.currentTimeMillis() - delay;
+      totalTimeout -= delay;
+      if(totalTimeout < 0){
+        while(!waiting.isEmpty()){
+          waiting.remove(0).cancel(true);
+        }
+        throw new TimeoutException("Unable to complete all tasks within the timeout specified");
+      }
+    }
+    return response;
+  }
+
+  private <T> List<Future<T>> submitList(@NotNull Collection<? extends Callable<T>> tasks) {
+    List<Future<T>> response = new ArrayList<>();
+    for (Callable<T> callable : tasks) {
+      Future<T> future = submit(callable);
+      response.add(future);
+    }
+    return response;
+  }
+
+  @NotNull
+  @Override
+  public <T> T invokeAny(@NotNull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
+    // Since this schedule is a single ordered scheduler we will only every execute the first task
+    List<Callable<T>> callableList = new ArrayList<>(tasks);
+    Future<T> future = submit(callableList.get(0));
+    return future.get();
+  }
+
+  @Override
+  public <T> T invokeAny(@NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+    // Since this schedule is a single ordered scheduler we will only every execute the first task
+    List<Callable<T>> callableList = new ArrayList<>(tasks);
+    Future<T> future = submit(callableList.get(0));
+    return future.get(timeout, unit);
+  }
+
+  @SneakyThrows
+  @Override
+  public void execute(@NotNull Runnable command) {
+    submit(command);
+  }
+
 
   /**
    * @return the number of times this queue has had an offload thread take over
@@ -143,7 +281,9 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
    *
    * @return The next task to execute in this queue
    */
-  protected abstract @Nullable FutureTask<V> poll();
+  protected abstract @Nullable FutureTask<?> poll();
+
+  protected abstract <T> FutureTask<T> addTask(@NonNull @NotNull FutureTask<T> task);
 
   /**
    * Entry point to start processing tasks off the queue when adding
@@ -190,7 +330,7 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
    */
   private void taskRun(int maxTaskExecutions) {
     var runnerCount = 0;
-    FutureTask<V> task = poll();
+    Runnable task = poll();
     while (task != null) {
       task.run();
       runnerCount++;
@@ -203,7 +343,7 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
           SimpleTaskScheduler.getInstance().submit(offloadThread);
           return;
         }
-        //Otherwise keep processing
+        //Otherwise, keep processing
         task = poll();
       } else {
         //We have completed all of our work
@@ -234,5 +374,9 @@ public abstract class ConcurrentTaskScheduler<V> implements TaskScheduler<V> {
       internalExecuteQueue(MAX_TASK_EXECUTION_SCHEDULED_THREAD);
       Thread.currentThread().setName(threadName);
     }
+  }
+
+  private static class VoidResponse{
+
   }
 }

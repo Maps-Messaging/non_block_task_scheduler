@@ -21,31 +21,27 @@ import io.mapsmessaging.utilities.threads.tasks.ConcurrentTaskScheduler;
 import io.mapsmessaging.utilities.threads.tasks.SingleConcurrentTaskScheduler;
 import io.mapsmessaging.utilities.threads.tasks.examples.tasks.AdderTask;
 import io.mapsmessaging.utilities.threads.tasks.examples.tasks.SubTask;
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.Future;
 
 public class ResourceManager {
 
-  private final ConcurrentTaskScheduler<Long> concurrentTaskScheduler;
+  private final ConcurrentTaskScheduler concurrentTaskScheduler;
   private final LongCounter counter;
 
 
   public ResourceManager(){
-    concurrentTaskScheduler = new SingleConcurrentTaskScheduler<>("UniqueDomainName");
+    concurrentTaskScheduler = new SingleConcurrentTaskScheduler("UniqueDomainName");
     counter = new LongCounter();
   }
 
-  public FutureTask<Long> add(long value){
+  public Future<Long> add(long value){
     AdderTask adderTask = new AdderTask(value, counter);
-    FutureTask<Long> future = new FutureTask<>(adderTask);
-    concurrentTaskScheduler.addTask(future);
-    return future;
+    return concurrentTaskScheduler.submit(adderTask);
   }
 
-  public FutureTask<Long> sub(long value){
+  public Future<Long> sub(long value){
     SubTask subTask = new SubTask(value, counter);
-    FutureTask<Long> future = new FutureTask<>(subTask);
-    concurrentTaskScheduler.addTask(future);
-    return future;
+    return concurrentTaskScheduler.submit(subTask);
   }
 
   public long getResourceLong(){

@@ -31,12 +31,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 abstract class ConcurrentTaskSchedulerTest {
 
-  protected abstract ConcurrentTaskScheduler<Object> create();
+  protected abstract ConcurrentTaskScheduler create();
 
 
   @Test
   void checkDomain() throws IOException {
-    ConcurrentTaskScheduler<Object> taskScheduler = create();
+    ConcurrentTaskScheduler taskScheduler = create();
     AtomicBoolean ok = new AtomicBoolean(false);
     taskScheduler.addTask(new FutureTask<>(new Callable<Object>(){
       @Override
@@ -65,15 +65,15 @@ abstract class ConcurrentTaskSchedulerTest {
 
   @Test
   void validation() {
-    ConcurrentTaskScheduler<Object> taskScheduler = create();
+    ConcurrentTaskScheduler taskScheduler = create();
     assertThrows(Exception.class, ()->taskScheduler.addTask(null));
     assertDoesNotThrow( ()->taskScheduler.addTask(new FutureTask<>(new Task())));
   }
 
   @Test
   void shutdown() {
-    ConcurrentTaskScheduler<Object> taskScheduler = create();
-    taskScheduler.shutdown(true);
+    ConcurrentTaskScheduler taskScheduler = create();
+    taskScheduler.shutdown();
     FutureTask<Object> futureTask = new FutureTask<>(new Task());
     taskScheduler.addTask(futureTask);
     assertTrue(futureTask.isCancelled());
@@ -82,7 +82,7 @@ abstract class ConcurrentTaskSchedulerTest {
 
   @Test
   void offloadThread() throws IOException {
-    ConcurrentTaskScheduler<Object> taskScheduler = create();
+    ConcurrentTaskScheduler taskScheduler = create();
     assertTrue(taskScheduler.isEmpty());
     AtomicBoolean atomicBoolean = new AtomicBoolean(false);
     Thread th = new Thread(() -> {
@@ -109,7 +109,7 @@ abstract class ConcurrentTaskSchedulerTest {
 
   @Test
   void getters() {
-    ConcurrentTaskScheduler<Object> taskScheduler = create();
+    ConcurrentTaskScheduler taskScheduler = create();
     FutureTask<Object> futureTask = new FutureTask<>(new Task());
     taskScheduler.addTask(futureTask);
     assertTrue(futureTask.isDone());
@@ -121,7 +121,7 @@ abstract class ConcurrentTaskSchedulerTest {
 
   @Test
   void addTask() throws IOException {
-    ConcurrentTaskScheduler<Object> taskScheduler = create();
+    ConcurrentTaskScheduler taskScheduler = create();
     assertNotNull(taskScheduler);
     assertTrue(taskScheduler.isEmpty());
     FutureTask<Object> futureTask = new FutureTask<>(new Task());

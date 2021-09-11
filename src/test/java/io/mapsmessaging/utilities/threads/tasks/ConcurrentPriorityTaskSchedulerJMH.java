@@ -34,14 +34,14 @@ import org.openjdk.jmh.annotations.Threads;
 
 @State(Scope.Benchmark)
 public class ConcurrentPriorityTaskSchedulerJMH {
-  PriorityTaskScheduler<Object> queue;
+  PriorityTaskScheduler queue;
   LongAdder adder;
   AtomicLong priority = new AtomicLong(0);
 
   @Setup
   public void createState(){
     System.err.println("New Queue created");
-    queue = new PriorityConcurrentTaskScheduler<>("Benchmark", 32);
+    queue = new PriorityConcurrentTaskScheduler("Benchmark", 32);
     adder = new LongAdder();
   }
 
@@ -55,7 +55,7 @@ public class ConcurrentPriorityTaskSchedulerJMH {
   @Threads(64)
   public void performTasks(){
     FutureTask<Object> futureTask = new FutureTask<>(new Task());
-    queue.addTask(futureTask, (int)(priority.incrementAndGet() % 32));
+    queue.submit(futureTask, (int)(priority.incrementAndGet() % 32));
     if(queue.getOutstanding() > 10000) {
       while (!futureTask.isDone()) {
         LockSupport.parkNanos(1);
