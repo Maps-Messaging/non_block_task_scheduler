@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -36,7 +38,6 @@ import lombok.ToString;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import io.mapsmessaging.utilities.threads.SimpleTaskScheduler;
 
 /**
  * This class abstraction is a thread safe task scheduler that will manage the threading access of the task schedulers.
@@ -64,6 +65,8 @@ import io.mapsmessaging.utilities.threads.SimpleTaskScheduler;
  */
 @ToString
 public abstract class ConcurrentTaskScheduler implements TaskScheduler {
+
+  private static final ExecutorService executorOffloadService = Executors.newWorkStealingPool();
 
   //Allow a maximum of so many tasks when the thread is external to the task scheduler
   protected static final int MAX_TASK_EXECUTION_EXTERNAL_THREAD = 10;
@@ -120,9 +123,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
         // OK we are running a task that is closing this task scheduler, so we can clear out the queue
         Future<?> task = poll();
         while (task != null) {
-          if(task instanceof FutureTask){
-            ((FutureTask)task).cancel(true);
-          }
+          task.cancel(true);
           task = poll();
         }
         terminated = true;
@@ -340,7 +341,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
         //If we have hit our max task executions schedule a new instance to run
         if (runnerCount >= maxTaskExecutions) {
           offloadedCount.increment();
-          SimpleTaskScheduler.getInstance().submit(offloadThread);
+          executorOffloadService.submit(offloadThread);
           return;
         }
         //Otherwise, keep processing
