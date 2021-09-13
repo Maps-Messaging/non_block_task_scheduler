@@ -162,7 +162,7 @@
       <artifactId>junit-jupiter-engine</artifactId>
       <groupId>org.junit.jupiter</groupId>
       <scope>test</scope>
-      <version>5.7.2</version>
+      <version>5.8.0</version>
     </dependency>
 
     <!-- Java micro benchmarking -->
