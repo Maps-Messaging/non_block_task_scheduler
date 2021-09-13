@@ -334,6 +334,9 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
     Runnable task = poll();
     while (task != null) {
       task.run();
+      if(Thread.interrupted()){
+        System.err.println("Uncaught interrupt exception");
+      }
       runnerCount++;
       long count = outstanding.decrementAndGet();
       //If we return a value higher than zero we still have work to be done
