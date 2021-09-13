@@ -22,16 +22,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.LockSupport;
+
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.ToString;
@@ -120,11 +115,8 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
     if(threadStateContext != null){
       String threadDomain = (String)threadStateContext.get(DOMAIN);
       if(localDomain != null && localDomain.equalsIgnoreCase(threadDomain)){
-        // OK we are running a task that is closing this task scheduler, so we can clear out the queue
-        Future<?> task = poll();
-        while (task != null) {
-          task.cancel(true);
-          task = poll();
+        while(!isEmpty()){
+          LockSupport.parkNanos(1000000);
         }
         terminated = true;
       }
@@ -151,38 +143,59 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
         }
       }
     }
+    terminated = true;
     return active;
   }
 
-  public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException{
-    long waitTill = System.currentTimeMillis() + unit.toMillis(timeout);
-
-    // ToDo wait till tasks are complete OR timeout has occured
-    return true;
+  @Override
+  public boolean awaitTermination(long timeout, @NotNull TimeUnit unit) throws InterruptedException {
+    if (Thread.interrupted()) throw new InterruptedException();
+    long nanos = unit.toNanos(timeout);
+    if (isTerminated()) return true;
+    if (nanos <= 0L) return false;
+    long deadline = System.nanoTime() + nanos;
+    synchronized (this) {
+      for (;;) {
+        if (isTerminated()) return true;
+        if (nanos <= 0L) return false;
+        long millis = TimeUnit.NANOSECONDS.toMillis(nanos);
+        wait(millis > 0L ? millis : 1L);
+        nanos = deadline - System.nanoTime();
+      }
+    }
   }
 
   @NotNull
   @Override
   public <T> Future<T> submit(@NotNull Callable<T> task) {
+    if(shutdown || terminated){
+      throw new RejectedExecutionException();
+    }
     return addTask(new FutureTask<>(task));
   }
 
   @NotNull
   @Override
   public <T> Future<T> submit(@NotNull Runnable task, T result) {
+    if(shutdown || terminated){
+      throw new RejectedExecutionException();
+    }
     return addTask(new FutureTask<>(task, result));
   }
 
   @NotNull
   @Override
   public  Future<?> submit(@NotNull Runnable task) {
+    if(shutdown || terminated){
+      throw new RejectedExecutionException();
+    }
     return addTask(new FutureTask<>(task, new VoidResponse()));
   }
 
   @SneakyThrows
   @NotNull
   @Override
-  public <T> List<Future<T>> invokeAll(@NotNull Collection<? extends Callable<T>> tasks) throws InterruptedException {
+  public <T> List<Future<T>> invokeAll(@NotNull Collection<? extends Callable<T>> tasks) {
     List<Future<T>> response = submitList(tasks);
     List<Future<T>> waiting = new ArrayList<>(response);
     while(!waiting.isEmpty()){
@@ -199,6 +212,9 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
     long totalTimeout = unit.toMillis(timeout);
     List<Future<T>> response = submitList(tasks);
     List<Future<T>> waiting = new ArrayList<>(response);
+    if(Thread.currentThread().isInterrupted()){
+      throw new InterruptedException();
+    }
     while(!waiting.isEmpty()){
       Future<T> future = waiting.remove(0);
       long delay = System.currentTimeMillis();
@@ -216,6 +232,10 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
   }
 
   private <T> List<Future<T>> submitList(@NotNull Collection<? extends Callable<T>> tasks) {
+    if(shutdown || terminated){
+      throw new RejectedExecutionException();
+    }
+
     List<Future<T>> response = new ArrayList<>();
     for (Callable<T> callable : tasks) {
       Future<T> future = submit(callable);
@@ -227,6 +247,9 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
   @NotNull
   @Override
   public <T> T invokeAny(@NotNull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
+    if(shutdown || terminated){
+      throw new RejectedExecutionException();
+    }
     // Since this schedule is a single ordered scheduler we will only every execute the first task
     List<Callable<T>> callableList = new ArrayList<>(tasks);
     Future<T> future = submit(callableList.get(0));
@@ -235,6 +258,9 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
 
   @Override
   public <T> T invokeAny(@NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+    if(shutdown || terminated){
+      throw new RejectedExecutionException();
+    }
     // Since this schedule is a single ordered scheduler we will only every execute the first task
     List<Callable<T>> callableList = new ArrayList<>(tasks);
     Future<T> future = submit(callableList.get(0));
@@ -380,6 +406,6 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
   }
 
   private static class VoidResponse{
-
+    public VoidResponse(){}
   }
 }
