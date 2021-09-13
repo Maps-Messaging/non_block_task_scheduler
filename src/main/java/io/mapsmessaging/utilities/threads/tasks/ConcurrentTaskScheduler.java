@@ -308,6 +308,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
    *
    * @return The next task to execute in this queue
    */
+  @SuppressWarnings("java:S1452")
   protected abstract @Nullable FutureTask<?> poll();
 
   protected abstract <T> FutureTask<T> addTask(@NonNull @NotNull FutureTask<T> task);
