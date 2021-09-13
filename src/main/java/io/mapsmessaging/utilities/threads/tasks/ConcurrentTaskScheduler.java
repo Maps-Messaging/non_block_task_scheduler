@@ -176,7 +176,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
   @NotNull
   @Override
   public  Future<?> submit(@NotNull Runnable task) {
-    return addTask(new FutureTask<VoidResponse>(task, new VoidResponse()));
+    return addTask(new FutureTask<>(task, new VoidResponse()));
   }
 
   @SneakyThrows

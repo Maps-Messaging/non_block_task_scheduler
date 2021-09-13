@@ -18,8 +18,8 @@
 
 package io.mapsmessaging.utilities.threads.tasks;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import lombok.NonNull;
 import org.jetbrains.annotations.NotNull;
 
@@ -32,6 +32,6 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface PriorityTaskScheduler extends TaskScheduler {
 
-  <T> Future<T> submit(@NonNull @NotNull FutureTask<T> task, int priority);
+  <T> Future<T> submit(@NonNull @NotNull Callable<T> task,  int priority);
 
 }

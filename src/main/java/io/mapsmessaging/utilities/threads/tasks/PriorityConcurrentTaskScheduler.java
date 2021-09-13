@@ -18,6 +18,8 @@
 
 package io.mapsmessaging.utilities.threads.tasks;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 import lombok.NonNull;
 import lombok.ToString;
 import org.jetbrains.annotations.NotNull;
@@ -56,11 +58,12 @@ public class PriorityConcurrentTaskScheduler extends ConcurrentTaskScheduler imp
     }
   }
 
+  @Override
   protected <T> FutureTask<T> addTask(@NonNull @NotNull FutureTask<T> task) {
-    return  submit(task, 0);
+    return addTask(task, 0);
   }
 
-  public <T> FutureTask<T> submit(@NonNull @NotNull FutureTask<T> task, int priority) {
+  protected <T> FutureTask<T> addTask(@NonNull @NotNull FutureTask<T> task, int priority) {
     if(!shutdown) {
       queues.get(priority).add(task);
       executeQueue();
@@ -69,6 +72,10 @@ public class PriorityConcurrentTaskScheduler extends ConcurrentTaskScheduler imp
       task.cancel(true);
     }
     return task;
+  }
+
+  public <T> Future<T> submit(@NonNull @NotNull Callable<T> task, int priority) {
+    return addTask(new FutureTask<>(task), priority);
   }
 
   @Override
@@ -91,6 +98,7 @@ public class PriorityConcurrentTaskScheduler extends ConcurrentTaskScheduler imp
     }
     return null;
   }
+
 }
 
 
