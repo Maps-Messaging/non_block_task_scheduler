@@ -189,7 +189,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
     if(shutdown || terminated){
       throw new RejectedExecutionException();
     }
-    return addTask(new FutureTask<>(task, new VoidResponse()));
+    return addTask(new FutureTask<>(task, new Object()));
   }
 
   @SneakyThrows
@@ -403,9 +403,5 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
       internalExecuteQueue(MAX_TASK_EXECUTION_SCHEDULED_THREAD);
       Thread.currentThread().setName(threadName);
     }
-  }
-
-  private static class VoidResponse{
-    public VoidResponse(){}
   }
 }
