@@ -61,7 +61,19 @@ import org.jetbrains.annotations.Nullable;
 @ToString
 public abstract class ConcurrentTaskScheduler implements TaskScheduler {
 
-  private static final ExecutorService executorOffloadService = Executors.newWorkStealingPool();
+  private static final int POOL_DEPTH;
+  static{
+    int ival = Runtime.getRuntime().availableProcessors();
+    String val = System.getProperty("PoolDepth", ""+ival);
+    try {
+      ival = Integer.parseInt(val);
+    } catch (NumberFormatException e) {
+      //Ignore here
+    }
+    POOL_DEPTH = ival;
+  }
+
+  private static final ExecutorService executorOffloadService = Executors.newWorkStealingPool(POOL_DEPTH);
 
   //Allow a maximum of so many tasks when the thread is external to the task scheduler
   protected static final int MAX_TASK_EXECUTION_EXTERNAL_THREAD = 10;
