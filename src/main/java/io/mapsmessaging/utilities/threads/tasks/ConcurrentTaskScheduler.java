@@ -18,6 +18,9 @@
 
 package io.mapsmessaging.utilities.threads.tasks;
 
+import io.mapsmessaging.logging.Logger;
+import io.mapsmessaging.logging.LoggerFactory;
+import io.mapsmessaging.utilities.threads.logging.ThreadLoggingMessages;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -83,6 +86,8 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
 
   private final ThreadStateContext context;
 
+  protected final Logger logger;
+
   protected final AtomicLong outstanding;
   protected final LongAdder offloadedCount;
   protected final LongAdder totalQueued;
@@ -95,6 +100,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
 
 
   protected ConcurrentTaskScheduler(@NonNull @NotNull String domain) {
+    logger = LoggerFactory.getLogger(getClass());
     context = new ThreadStateContext();
     context.add(DOMAIN, domain);
     context.add("TaskQueue", this);
@@ -119,6 +125,8 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
   @Override
   public void shutdown(){
     shutdown = true;
+    logger.log(ThreadLoggingMessages.SCHEDULER_SHUTTING_DOWN);
+
     //
     // If a Future Task is closing this scheduler then we simply clear the queue and cancel any tasks
     // that may still be active
@@ -183,6 +191,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
     if(shutdown || terminated){
       throw new RejectedExecutionException();
     }
+    logger.log(ThreadLoggingMessages.SCHEDULER_SUBMIT_TASK, task.getClass());
     return addTask(new FutureTask<>(task));
   }
 
@@ -192,6 +201,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
     if(shutdown || terminated){
       throw new RejectedExecutionException();
     }
+    logger.log(ThreadLoggingMessages.SCHEDULER_SUBMIT_TASK, task.getClass());
     return addTask(new FutureTask<>(task, result));
   }
 
@@ -201,6 +211,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
     if(shutdown || terminated){
       throw new RejectedExecutionException();
     }
+    logger.log(ThreadLoggingMessages.SCHEDULER_SUBMIT_TASK, task.getClass());
     return addTask(new FutureTask<>(task, new Object()));
   }
 
@@ -372,6 +383,8 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
     var runnerCount = 0;
     Runnable task = poll();
     while (task != null) {
+      logger.log(ThreadLoggingMessages.SCHEDULER_EXECUTING_TASK, task.getClass());
+
       task.run();
       // Clear the interrupt for the next task
       Thread.interrupted();
@@ -381,6 +394,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
       if (count != 0) {
         //If we have hit our max task executions schedule a new instance to run
         if (runnerCount >= maxTaskExecutions) {
+          logger.log(ThreadLoggingMessages.SCHEDULER_THREAD_OFF_LOADING);
           offloadedCount.increment();
           executorOffloadService.submit(offloadThread);
           return;
@@ -388,13 +402,14 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
         //Otherwise, keep processing
         task = poll();
       } else {
+        logger.log(ThreadLoggingMessages.SCHEDULER_IS_IDLE);
         //We have completed all of our work
         return;
       }
     }
   }
   /**
-   * Class used for the offload thread
+   * Class used for the off load thread
    */
   private class QueueRunner implements Runnable {
 

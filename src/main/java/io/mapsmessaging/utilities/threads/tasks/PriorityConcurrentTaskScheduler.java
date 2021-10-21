@@ -18,6 +18,9 @@
 
 package io.mapsmessaging.utilities.threads.tasks;
 
+import io.mapsmessaging.logging.Logger;
+import io.mapsmessaging.logging.LoggerFactory;
+import io.mapsmessaging.utilities.threads.logging.ThreadLoggingMessages;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import lombok.NonNull;
@@ -56,6 +59,7 @@ public class PriorityConcurrentTaskScheduler extends ConcurrentTaskScheduler imp
     for(var x=0;x<prioritySize;x++){
       queues.add(new ConcurrentLinkedQueue<>());
     }
+    logger.log(ThreadLoggingMessages.PRIORITY_CREATION, domain, prioritySize);
   }
 
   @Override
@@ -65,10 +69,12 @@ public class PriorityConcurrentTaskScheduler extends ConcurrentTaskScheduler imp
 
   protected <T> FutureTask<T> addTask(@NonNull @NotNull FutureTask<T> task, int priority) {
     if(!shutdown) {
+      logger.log(ThreadLoggingMessages.PRIORITY_SUBMIT, task.getClass().getName(), priority);
       queues.get(priority).add(task);
       executeQueue();
     }
     else{
+      logger.log(ThreadLoggingMessages.SCHEDULER_SHUTDOWN, task.getClass().getName());
       task.cancel(true);
     }
     return task;
