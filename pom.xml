@@ -163,7 +163,7 @@
     <dependency>
       <groupId>io.mapsmessaging</groupId>
       <artifactId>Simple_Logging</artifactId>
-      <version>1.0.2</version>
+      <version>1.0.5</version>
     </dependency>
 
     <!-- https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core -->
