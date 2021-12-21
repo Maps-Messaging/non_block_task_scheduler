@@ -6,7 +6,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.mapsmessaging</groupId>
   <artifactId>Non_Block_Task_Scheduler</artifactId>
-  <version>2.0.5</version>
+  <version>2.1.0</version>
   <packaging>jar</packaging>
 
   <name>Maps Messaging Task Queue</name>
@@ -177,7 +177,7 @@
     <dependency>
       <groupId>io.mapsmessaging</groupId>
       <artifactId>Simple_Logging</artifactId>
-      <version>1.0.6</version>
+      <version>2.0.1</version>
     </dependency>
 
     <!-- Junit5 -->

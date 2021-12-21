@@ -20,6 +20,7 @@ package io.mapsmessaging.utilities.threads.tasks;
 
 import io.mapsmessaging.logging.Logger;
 import io.mapsmessaging.logging.LoggerFactory;
+import io.mapsmessaging.logging.ThreadContext;
 import io.mapsmessaging.utilities.threads.logging.ThreadLoggingMessages;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -33,7 +34,6 @@ import java.util.concurrent.locks.LockSupport;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.ToString;
-import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
