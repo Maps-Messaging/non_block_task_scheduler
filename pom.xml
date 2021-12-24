@@ -193,7 +193,7 @@
       <artifactId>jmh-core</artifactId>
       <groupId>org.openjdk.jmh</groupId>
       <scope>test</scope>
-      <version>1.33</version>
+      <version>1.34</version>
     </dependency>
 
     <dependency>
