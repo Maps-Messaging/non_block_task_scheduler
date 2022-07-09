@@ -38,27 +38,21 @@ abstract class ConcurrentTaskSchedulerTest {
   void checkDomain() throws IOException {
     ConcurrentTaskScheduler taskScheduler = create();
     AtomicBoolean ok = new AtomicBoolean(false);
-    taskScheduler.addTask(new FutureTask<>(new Callable<Object>(){
-      @Override
-      public Object call() throws Exception {
-        ThreadLocalContext.checkDomain("test");
-        ok.set(true);
-        return true;
-      }
+    taskScheduler.addTask(new FutureTask<>((Callable<Object>) () -> {
+      ThreadLocalContext.checkDomain("test");
+      ok.set(true);
+      return true;
     }));
-    WaitForState.waitFor(100, TimeUnit.MILLISECONDS, ()->ok.get());
+    WaitForState.waitFor(100, TimeUnit.MILLISECONDS, ok::get);
 
-    taskScheduler.addTask(new FutureTask<>(new Callable<Object>(){
-      @Override
-      public Object call() throws Exception {
-        try {
-          ThreadLocalContext.checkDomain("should_fail");
-          ok.set(true);
-        } catch (Exception exception) {
-          ok.set(false);
-        }
-        return true;
+    taskScheduler.addTask(new FutureTask<>((Callable<Object>) () -> {
+      try {
+        ThreadLocalContext.checkDomain("should_fail");
+        ok.set(true);
+      } catch (Exception exception) {
+        ok.set(false);
       }
+      return true;
     }));
     WaitForState.waitFor(100, TimeUnit.MILLISECONDS, ()-> !ok.get());
   }
@@ -130,14 +124,10 @@ abstract class ConcurrentTaskSchedulerTest {
     assertTrue(taskScheduler.isEmpty());
   }
 
-  @Test
-  void testToString() {
-  }
-
   private static class Task implements Callable<Object>{
 
     @Override
-    public Object call() throws Exception {
+    public Object call() {
       return this;
     }
   }
@@ -163,7 +153,7 @@ abstract class ConcurrentTaskSchedulerTest {
     }
 
     @Override
-    public Object call() throws Exception {
+    public Object call() {
       failed = scheduledThread == Thread.currentThread();
       return this;
     }
