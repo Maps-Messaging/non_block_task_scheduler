@@ -18,8 +18,6 @@
 
 package io.mapsmessaging.utilities.threads.tasks;
 
-import io.mapsmessaging.logging.Logger;
-import io.mapsmessaging.logging.LoggerFactory;
 import io.mapsmessaging.utilities.threads.logging.ThreadLoggingMessages;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
