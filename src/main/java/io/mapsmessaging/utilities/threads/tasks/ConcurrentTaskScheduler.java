@@ -352,7 +352,7 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
     }
   }
 
-  private void internalExecuteQueue(int maxTaskExecutions) {
+  protected void internalExecuteQueue(int maxTaskExecutions) {
     Map<String, String> logContext = ThreadContext.getContext();
     ThreadStateContext originalDomain = ThreadLocalContext.get();
     if(context != null) {
