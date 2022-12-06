@@ -22,7 +22,7 @@ Then include the dependency
     <dependency>
       <groupId>io.mapsmessaging</groupId>
       <artifactId>Non_Block_Task_Scheduler</artifactId>
-      <version>1.0.0</version>
+      <version>2.1.3</version>
     </dependency>
 ```    
 
