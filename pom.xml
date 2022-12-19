@@ -207,7 +207,7 @@
     <dependency>
       <artifactId>annotations</artifactId>
       <groupId>org.jetbrains</groupId>
-      <version>23.0.0</version>
+      <version>23.1.0</version>
     </dependency>
 
     <dependency>
