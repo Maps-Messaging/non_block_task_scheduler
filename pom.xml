@@ -9,7 +9,7 @@
   <version>2.1.3</version>
   <packaging>jar</packaging>
 
-  <name>Maps Messaging Task Queue</name>
+  <name>Non Blocking Task Queue</name>
   <description>A non-block task queue and task scheduler</description>
   <url>http://www.mapsmessaging.io</url>
 
