@@ -213,7 +213,7 @@
     <dependency>
       <artifactId>lombok</artifactId>
       <groupId>org.projectlombok</groupId>
-      <version>1.18.24</version>
+      <version>1.18.26</version>
     </dependency>
     <dependency>
       <artifactId>jsr305</artifactId>
