@@ -1,20 +1,12 @@
 # Non_Block_Task_Scheduler
-Provides a non blocking task scheduler
+Provides a non-blocking task scheduler
 
 For more overview and usage for this library please see [MapsMessaging webSite](https://www.mapsmessaging.io/scheduler/overview.html)
 
 
 # pom.xml setup
 
-Add the repository configuration into the pom.xml
-``` xml
-    <!-- MapsMessaging jfrog server -->
-    <repository>
-      <id>mapsmessaging.io</id>
-      <name>artifactory-releases</name>
-      <url>https://mapsmessaging.jfrog.io/artifactory/mapsmessaging-mvn-prod</url>
-    </repository>
-```    
+All MapsMessaging libraries are hosted on the [maven central server.](https://central.sonatype.com/search?smo=true&q=mapsmessaging)
 
 Then include the dependency
 ``` xml
@@ -22,7 +14,7 @@ Then include the dependency
     <dependency>
       <groupId>io.mapsmessaging</groupId>
       <artifactId>Non_Block_Task_Scheduler</artifactId>
-      <version>2.1.3</version>
+      <version>2.1.4</version>
     </dependency>
 ```    
 
