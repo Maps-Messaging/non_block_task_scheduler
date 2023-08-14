@@ -233,7 +233,7 @@
       <artifactId>jmh-core</artifactId>
       <groupId>org.openjdk.jmh</groupId>
       <scope>test</scope>
-      <version>1.36</version>
+      <version>1.37</version>
     </dependency>
 
     <dependency>
