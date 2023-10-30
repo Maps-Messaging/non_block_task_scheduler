@@ -5,8 +5,8 @@
 
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.mapsmessaging</groupId>
-  <artifactId>Non_Block_Task_Scheduler</artifactId>
-  <version>2.1.7</version>
+  <artifactId>non_block_task_scheduler</artifactId>
+  <version>2.1.8-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>Non Blocking Task Queue</name>
@@ -72,13 +72,58 @@
     </sonar.test.exclusions>
   </properties>
 
+  <profiles>
+    <profile>
+      <!-- Default profile for regular releases -->
+      <id>release</id>
+      <distributionManagement>
+        <repository>
+          <id>ossrh</id>
+          <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
+          <snapshots>
+            <enabled>false</enabled>
+          </snapshots>
+        </repository>
+      </distributionManagement>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.sonatype.plugins</groupId>
+            <artifactId>nexus-staging-maven-plugin</artifactId>
+            <version>1.6.13</version>
+            <extensions>true</extensions>
+            <configuration>
+              <serverId>mapsmessaging.io</serverId>
+              <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
+              <autoReleaseAfterClose>true</autoReleaseAfterClose>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <id>snapshot</id>
+      <repositories>
+        <repository>
+          <id>github</id>
+          <url>https://maven.pkg.github.com/Maps-Messaging/simple_logging</url>
+          <snapshots>
+            <enabled>true</enabled>
+          </snapshots>
+        </repository>
+      </repositories>
+    </profile>
+  </profiles>
+
+
   <distributionManagement>
     <snapshotRepository>
-      <id>mapsmessaging.io</id>
-      <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
+      <id>github</id>
+      <url>https://maven.pkg.github.com/Maps-Messaging/non_block_task_scheduler</url>
     </snapshotRepository>
     <repository>
-      <id>mapsmessaging.io</id>
+      <id>ossrh</id>
       <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
   </distributionManagement>
@@ -216,8 +261,8 @@
 
     <dependency>
       <groupId>io.mapsmessaging</groupId>
-      <artifactId>Simple_Logging</artifactId>
-      <version>2.0.9</version>
+      <artifactId>simple_logging</artifactId>
+      <version>2.0.10-SNAPSHOT</version>
     </dependency>
 
     <!-- Junit5 -->
