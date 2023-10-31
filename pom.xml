@@ -76,6 +76,13 @@
     <profile>
       <!-- Default profile for regular releases -->
       <id>release</id>
+      <dependencies>
+        <dependency>
+          <groupId>io.mapsmessaging</groupId>
+          <artifactId>simple_logging</artifactId>
+          <version>2.0.9</version>
+        </dependency>
+      </dependencies>
       <distributionManagement>
         <repository>
           <id>ossrh</id>
@@ -106,21 +113,30 @@
       <id>snapshot</id>
       <repositories>
         <repository>
-          <id>github</id>
-          <url>https://maven.pkg.github.com/Maps-Messaging/simple_logging</url>
+          <id>maps_snapshots</id>
+          <name>maps_snapshot_repository</name>
+          <url>https://repository.mapsmessaging.io:8081/repository/maps_snapshots/</url>
           <snapshots>
             <enabled>true</enabled>
           </snapshots>
         </repository>
       </repositories>
+      <dependencies>
+        <dependency>
+          <groupId>io.mapsmessaging</groupId>
+          <artifactId>simple_logging</artifactId>
+          <version>2.0.10-SNAPSHOT</version>
+        </dependency>
+      </dependencies>
     </profile>
   </profiles>
 
 
   <distributionManagement>
     <snapshotRepository>
-      <id>github</id>
-      <url>https://maven.pkg.github.com/Maps-Messaging/non_block_task_scheduler</url>
+      <id>maps_snapshots</id>
+      <name>maps_snapshot_repository</name>
+      <url>https://repository.mapsmessaging.io:8081/repository/maps_snapshots/</url>
     </snapshotRepository>
     <repository>
       <id>ossrh</id>
@@ -258,12 +274,6 @@
   </build>
 
   <dependencies>
-
-    <dependency>
-      <groupId>io.mapsmessaging</groupId>
-      <artifactId>simple_logging</artifactId>
-      <version>2.0.10-SNAPSHOT</version>
-    </dependency>
 
     <!-- Junit5 -->
     <dependency>
