@@ -189,7 +189,7 @@
           <target>11</target>
         </configuration>
         <groupId>org.apache.maven.plugins</groupId>
-        <version>3.12.0</version>
+        <version>3.12.1</version>
       </plugin>
 
       <!-- Setup code coverage by jacoco for our tests -->
