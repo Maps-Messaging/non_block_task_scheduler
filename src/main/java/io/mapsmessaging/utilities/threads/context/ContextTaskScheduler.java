@@ -65,26 +65,9 @@ public class ContextTaskScheduler extends ConcurrentTaskScheduler {
   }
 
 
-  /**
-   * Entry point to start processing tasks off the queue when adding
-   */
-  @Override
-  protected void executeQueue() {
-    totalQueued.increment();
-    long count = outstanding.incrementAndGet();
-    if (count > maxOutstanding) {
-      maxOutstanding = count;
-    }
-    //If we are equal to 1 we enter the queue execution path and process our task, this will lead to scheduling a the
-    // QueueRunner if necessary
-    if (count == 1) {
-      internalExecuteQueue(MAX_TASK_EXECUTION_EXTERNAL_THREAD);
-    }
-  }
-
+  @Getter
   private static final class FutureTaskAccess<T> extends FutureTask<T>{
 
-    @Getter
     private final boolean isImmutable;
 
     public FutureTaskAccess(@NotNull Callable<T> callable) {
