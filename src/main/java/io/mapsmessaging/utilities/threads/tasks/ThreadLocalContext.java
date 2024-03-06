@@ -33,6 +33,8 @@ import javax.annotation.Nullable;
  *  @author Matthew Buckton
  *  @version 1.0
  */
+
+@SuppressWarnings("java:S6548") // yes it is a singleton
 @ToString
 public class ThreadLocalContext {
 
@@ -48,20 +50,26 @@ public class ThreadLocalContext {
     DEBUG_DOMAIN = check;
   }
 
-  private static final ThreadLocalContext instance = new ThreadLocalContext();
+  private static class Holder {
+    static final ThreadLocalContext INSTANCE = new ThreadLocalContext();
+  }
+  public static ThreadLocalContext getInstance() {
+    return ThreadLocalContext.Holder.INSTANCE;
+  }
+
 
   protected final ThreadLocal<ThreadStateContext> context;
 
   public static @Nullable ThreadStateContext get(){
-    return instance.context.get();
+    return getInstance().context.get();
   }
 
   public static void set(@NonNull @NotNull ThreadStateContext entry){
-    instance.context.set(entry);
+    getInstance().context.set(entry);
   }
 
   public static void remove(){
-    instance.context.remove();
+    getInstance().context.remove();
   }
 
   public static void checkDomain(@NonNull @NotNull String domain){
