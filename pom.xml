@@ -302,7 +302,7 @@
     <dependency>
       <artifactId>annotations</artifactId>
       <groupId>org.jetbrains</groupId>
-      <version>24.1.0</version>
+      <version>25.0.0</version>
     </dependency>
 
     <dependency>
