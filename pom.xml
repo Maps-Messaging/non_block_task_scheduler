@@ -256,7 +256,7 @@
           <charset>UTF-8</charset>
           <encoding>UTF-8</encoding>
           <javadocExecutable>${java.home}/bin/javadoc</javadocExecutable>
-          <reportOutputDirectory>${project.build.directory}/site/docs</reportOutputDirectory>
+          <outputDirectory>${project.build.directory}/site/docs</outputDirectory>
           <show>public</show>
         </configuration>
         <executions>
