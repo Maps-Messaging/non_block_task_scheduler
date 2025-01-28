@@ -44,6 +44,7 @@
   </scm>
 
   <properties>
+    <nvd.api.key>${env.NVD_API_KEY}</nvd.api.key>
     <maven.compiler.source>13</maven.compiler.source>
     <maven.compiler.target>13</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -269,6 +270,23 @@
         </executions>
         <groupId>org.apache.maven.plugins</groupId>
         <version>3.11.2</version>
+      </plugin>
+      <plugin>
+        <groupId>org.owasp</groupId>
+        <artifactId>dependency-check-maven</artifactId>
+        <version>11.1.1</version>
+        <configuration>
+          <nvdApiKey>${nvd.api.key}</nvdApiKey>
+          <failBuildOnAnyVulnerability>false</failBuildOnAnyVulnerability>
+          <failOnError>false</failOnError>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
