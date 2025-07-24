@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.*;
 
+@SuppressWarnings("java:S6548") // This is a singleton and used to manage simple tasks within a jvm
 public class SimpleTaskScheduler implements ScheduledExecutorService {
 
 
