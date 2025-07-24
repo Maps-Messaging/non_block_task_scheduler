@@ -86,7 +86,7 @@ public class ContextTaskScheduler extends ConcurrentTaskScheduler {
 
 
   @Getter
-  private static final class FutureTaskAccess<T> extends FutureTask<T>{
+  protected static final class FutureTaskAccess<T> extends FutureTask<T>{
 
     private final boolean isImmutable;
 
