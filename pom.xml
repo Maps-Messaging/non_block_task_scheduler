@@ -142,7 +142,7 @@
         <repository>
           <id>maps_snapshots</id>
           <name>maps_snapshot_repository</name>
-          <url>https://repository.mapsmessaging.io:8081/repository/maps_snapshots/</url>
+          <url>https://repository.mapsmessaging.io/repository/maps_snapshots/</url>
           <snapshots>
             <enabled>true</enabled>
           </snapshots>
@@ -163,7 +163,7 @@
     <snapshotRepository>
       <id>maps_snapshots</id>
       <name>maps_snapshot_repository</name>
-      <url>https://repository.mapsmessaging.io:8081/repository/maps_snapshots/</url>
+      <url>https://repository.mapsmessaging.io/repository/maps_snapshots/</url>
     </snapshotRepository>
     <repository>
       <id>ossrh</id>
