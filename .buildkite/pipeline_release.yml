@@ -2,6 +2,12 @@ steps:
   - label: ":maven: Build and Deploy"
     command:
       - mvn clean deploy -Prelease
+      - VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+      - echo "Tagging release ${VERSION}"
+      - git config user.name "Buildkite CI"
+      - git config user.email "ci@mapsmessaging.io"
+      - git tag -a "${VERSION}" -m "Release ${VERSION}"
+      - git push origin "${VERSION}"
     agents:
       queue: "java_build_queue"
 
