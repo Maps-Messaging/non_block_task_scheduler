@@ -14,7 +14,7 @@ Then include the dependency
     <dependency>
       <groupId>io.mapsmessaging</groupId>
       <artifactId>Non_Block_Task_Scheduler</artifactId>
-      <version>2.1.4</version>
+      <version>2.2.0</version>
     </dependency>
 ```    
 
