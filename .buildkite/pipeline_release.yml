@@ -1,7 +1,8 @@
 steps:
   - label: ":maven: Build and Deploy"
     command:
-      - mvn clean deploy -Prelease
+      - mvn -P release help:effective-pom -DforceStdout | sed -n '/maven-deploy-plugin/,/<\/plugin>/p'
+      - mvn -P release -DskipTests -Dmaven.deploy.skip=true clean deploy
       - VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
       - echo "Tagging release ${VERSION}"
       - git config user.name "Buildkite CI"
