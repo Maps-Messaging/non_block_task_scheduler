@@ -105,15 +105,9 @@
   <profiles>
     <profile>
       <id>release</id>
-      <dependencies>
-        <dependency>
-          <groupId>io.mapsmessaging</groupId>
-          <artifactId>simple_logging</artifactId>
-          <version>2.1.0</version>
-        </dependency>
-      </dependencies>
       <build>
         <plugins>
+          <!-- Central publisher -->
           <plugin>
             <groupId>org.sonatype.central</groupId>
             <artifactId>central-publishing-maven-plugin</artifactId>
@@ -124,12 +118,26 @@
               <autoPublish>true</autoPublish>
             </configuration>
           </plugin>
+
+          <!-- Disable default deploy for releases -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-deploy-plugin</artifactId>
+            <version>3.1.1</version>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
+          </plugin>
         </plugins>
       </build>
     </profile>
 
+
     <profile>
       <id>snapshot</id>
+      <properties>
+        <gpg.skip>true</gpg.skip>
+      </properties>
       <repositories>
         <repository>
           <id>maps_snapshots</id>
