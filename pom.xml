@@ -294,7 +294,7 @@
           </includes>
         </configuration>
         <groupId>org.apache.maven.plugins</groupId>
-        <version>3.5.4</version>
+        <version>3.5.5</version>
       </plugin>
 
       <!-- JavaDoc -->
