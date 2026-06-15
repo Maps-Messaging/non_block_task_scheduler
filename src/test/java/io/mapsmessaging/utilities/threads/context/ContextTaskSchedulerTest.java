@@ -1,7 +1,7 @@
 /*
  *
  *  Copyright [ 2020 - 2024 ] Matthew Buckton
- *  Copyright [ 2024 - 2025 ] MapsMessaging B.V.
+ *  Copyright [ 2024 - 2026 ] MapsMessaging B.V.
  *
  *  Licensed under the Apache License, Version 2.0 with the Commons Clause
  *  (the "License"); you may not use this file except in compliance with the License.
@@ -20,76 +20,76 @@
 
 package io.mapsmessaging.utilities.threads.context;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import io.mapsmessaging.utilities.threads.tasks.AbstractConcurrentTaskSchedulerContractTest;
+import io.mapsmessaging.utilities.threads.tasks.ConcurrentTaskScheduler;
+import java.util.concurrent.Future;
+import java.util.concurrent.RunnableFuture;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.*;
-
-import static org.junit.jupiter.api.Assertions.*;
-
-class ContextTaskSchedulerTest {
+class ContextTaskSchedulerTest extends AbstractConcurrentTaskSchedulerContractTest {
 
   private ContextTaskScheduler scheduler;
 
-  @BeforeEach
-  void setUp() {
-    scheduler = new ContextTaskScheduler("test-domain");
-  }
-
-  @AfterEach
-  void tearDown() {
-    scheduler.shutdown();
+  @Override
+  protected ConcurrentTaskScheduler create() {
+    scheduler = new ContextTaskScheduler("context-test");
+    return scheduler;
   }
 
   @Test
-  void testSubmitCallable_executesSuccessfully() throws Exception {
-    Future<String> future = scheduler.submit(() -> "done");
-    assertEquals("done", future.get(1, TimeUnit.SECONDS));
-  }
+  void submitImmutableRunnableSetsImmutableTrue() throws Exception {
+    create();
 
-  @Test
-  void testSubmitRunnable_executesSuccessfully() throws Exception {
-    StringBuilder result = new StringBuilder();
-    Future<String> future = scheduler.submit(() -> result.append("run"), "ok");
-    assertEquals("ok", future.get(1, TimeUnit.SECONDS));
-    assertEquals("run", result.toString());
-  }
-
-  @Test
-  void testSubmitCallable_afterShutdown_rejected() {
-    scheduler.shutdown();
-    assertThrows(RejectedExecutionException.class,
-        () -> scheduler.submit(() -> "fail"));
-  }
-
-  @Test
-  void testSubmitRunnable_afterTermination_rejected() {
-    scheduler.shutdownNow();
-    assertThrows(RejectedExecutionException.class,
-        () -> scheduler.submit(() -> {}, "fail"));
-  }
-
-  @Test
-  void testIsEmpty_returnsTrueWhenNoTasks() {
-    assertTrue(scheduler.isEmpty());
-  }
-
-  @Test
-  void testSubmit_immutableRunnable_setsIsImmutableTrue() throws Exception {
     class MyRunnable implements Runnable, Immutable {
+
       @Override
-      public void run() {}
+      public void run() {
+      }
     }
 
     Future<?> future = scheduler.submit(new MyRunnable(), "result");
 
     assertTrue(future instanceof RunnableFuture);
 
-    // Optional: reflectively check isImmutable
-    var field = future.getClass().getDeclaredField("isImmutable");
+    var field = future.getClass().getDeclaredField("immutable");
     field.setAccessible(true);
+
     assertTrue((boolean) field.get(future));
+
+    scheduler.shutdown();
+    assertTrue(scheduler.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS));
+  }
+
+  @Test
+  void submitImmutableCallableSetsImmutableTrue() throws Exception {
+    create();
+
+    class MyCallable implements java.util.concurrent.Callable<String>, Immutable {
+
+      @Override
+      public String call() {
+        return "result";
+      }
+
+      @Override
+      public void run() {
+      }
+    }
+
+    java.util.concurrent.Callable<String> callable = new MyCallable();
+
+    Future<?> future = scheduler.submit(callable);
+
+    assertTrue(future instanceof RunnableFuture);
+
+    var field = future.getClass().getDeclaredField("immutable");
+    field.setAccessible(true);
+
+    assertTrue((boolean) field.get(future));
+
+    scheduler.shutdown();
+    assertTrue(scheduler.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS));
   }
 }

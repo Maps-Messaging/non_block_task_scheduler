@@ -21,6 +21,7 @@
 package io.mapsmessaging.utilities.threads.tasks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -29,19 +30,45 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
-class SingleConcurrentTaskSchedulerTest extends AbstractConcurrentTaskSchedulerContractTest {
+class PriorityConcurrentTaskSchedulerTest extends AbstractConcurrentTaskSchedulerContractTest {
 
   @Override
   protected ConcurrentTaskScheduler create() {
-    return new SingleConcurrentTaskScheduler("single-test");
+    return new PriorityConcurrentTaskScheduler("priority-test", 3);
   }
 
   @Test
-  void queuedTasksRunInFifoOrder() throws Exception {
-    ConcurrentTaskScheduler taskScheduler = create();
+  void constructorRejectsInvalidPrioritySize() {
+    assertThrows(IllegalArgumentException.class, () -> new PriorityConcurrentTaskScheduler("priority-test", 0));
+    assertThrows(IllegalArgumentException.class, () -> new PriorityConcurrentTaskScheduler("priority-test", -1));
+  }
+
+  @Test
+  void submitRejectsInvalidPriorityValues() {
+    PriorityConcurrentTaskScheduler taskScheduler = new PriorityConcurrentTaskScheduler("priority-test", 3);
+
+    assertThrows(IllegalArgumentException.class, () -> taskScheduler.submit(() -> "bad", -1));
+    assertThrows(IllegalArgumentException.class, () -> taskScheduler.submit(() -> "bad", 3));
+
+    taskScheduler.shutdown();
+  }
+
+  @Test
+  void submitWithPriorityRejectsAfterShutdown() {
+    PriorityConcurrentTaskScheduler taskScheduler = new PriorityConcurrentTaskScheduler("priority-test", 3);
+
+    taskScheduler.shutdown();
+
+    assertThrows(RejectedExecutionException.class, () -> taskScheduler.submit(() -> "rejected", 1));
+  }
+
+  @Test
+  void queuedTasksRunInPriorityOrder() throws Exception {
+    PriorityConcurrentTaskScheduler taskScheduler = new PriorityConcurrentTaskScheduler("priority-test", 3);
 
     CountDownLatch runningStarted = new CountDownLatch(1);
     CountDownLatch releaseRunningTask = new CountDownLatch(1);
@@ -53,29 +80,35 @@ class SingleConcurrentTaskSchedulerTest extends AbstractConcurrentTaskSchedulerC
       Future<?> callerFuture = caller.submit(() ->
           taskScheduler.submit(() -> {
             runningStarted.countDown();
-            awaitLatch(releaseRunningTask);
-          })
+            assertTrue(releaseRunningTask.await(2, TimeUnit.SECONDS));
+            return null;
+          }, 0)
       );
 
       assertTrue(runningStarted.await(2, TimeUnit.SECONDS));
 
       taskScheduler.submit(() -> {
-        order.add(1);
-        queuedTasksRan.countDown();
-      });
-      taskScheduler.submit(() -> {
         order.add(2);
         queuedTasksRan.countDown();
-      });
+        return null;
+      }, 2);
+
       taskScheduler.submit(() -> {
-        order.add(3);
+        order.add(1);
         queuedTasksRan.countDown();
-      });
+        return null;
+      }, 1);
+
+      taskScheduler.submit(() -> {
+        order.add(0);
+        queuedTasksRan.countDown();
+        return null;
+      }, 0);
 
       releaseRunningTask.countDown();
 
       assertTrue(queuedTasksRan.await(2, TimeUnit.SECONDS));
-      assertEquals(List.of(1, 2, 3), order);
+      assertEquals(List.of(0, 1, 2), order);
 
       taskScheduler.shutdown();
       assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));

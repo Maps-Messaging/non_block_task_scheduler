@@ -365,6 +365,13 @@
       <version>1.37</version>
     </dependency>
 
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <version>6.1.0</version>
+      <scope>test</scope>
+    </dependency>
+
     <!-- Add annotations for not null -->
     <dependency>
       <artifactId>annotations</artifactId>

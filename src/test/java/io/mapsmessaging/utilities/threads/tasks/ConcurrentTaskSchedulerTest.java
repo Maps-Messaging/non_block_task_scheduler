@@ -20,6 +20,7 @@
 
 package io.mapsmessaging.utilities.threads.tasks;
 
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import io.mapsmessaging.test.WaitForState;
@@ -67,14 +68,12 @@ abstract class ConcurrentTaskSchedulerTest {
   }
 
   @Test
-  void shutdown() {
+  void shutdownRejectsNewTasks() {
     ConcurrentTaskScheduler taskScheduler = create();
     taskScheduler.shutdown();
     FutureTask<Object> futureTask = new FutureTask<>(new Task());
-    taskScheduler.addTask(futureTask);
-    assertTrue(futureTask.isCancelled());
+    assertThrows(RejectedExecutionException.class, () -> taskScheduler.addTask(futureTask));
   }
-
 
   @Test
   void offloadThread() throws IOException {

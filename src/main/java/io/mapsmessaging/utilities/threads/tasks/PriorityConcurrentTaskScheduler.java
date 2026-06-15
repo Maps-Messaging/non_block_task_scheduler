@@ -21,18 +21,17 @@
 package io.mapsmessaging.utilities.threads.tasks;
 
 import io.mapsmessaging.utilities.threads.logging.ThreadLoggingMessages;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import lombok.NonNull;
 import lombok.ToString;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.FutureTask;
 
 /**
  * This class implements a ConcurrentTaskScheduler with a priority based concurrent queue. This enables tasks with a higher priority to
@@ -48,17 +47,23 @@ public class PriorityConcurrentTaskScheduler extends ConcurrentTaskScheduler imp
   private final List<Queue<FutureTask<?>>> queues;
 
   /**
-   * Constructs the concurrent priority queue, specifying the depth of the priority and the unique domain name that this task queue manages
+   * Constructs the concurrent priority queue, specifying the depth of the priority and the unique domain name that this task queue manages.
    *
-   * @param domain  a unique domain name
+   * @param domain a unique domain name
    * @param prioritySize the number of unique priority levels
    */
   public PriorityConcurrentTaskScheduler(@NonNull @NotNull String domain, int prioritySize) {
     super(domain);
+
+    if (prioritySize <= 0) {
+      throw new IllegalArgumentException("Priority size must be greater than zero");
+    }
+
     queues = new ArrayList<>();
-    for(var x=0;x<prioritySize;x++){
+    for (int index = 0; index < prioritySize; index++) {
       queues.add(new ConcurrentLinkedQueue<>());
     }
+
     logger.log(ThreadLoggingMessages.PRIORITY_CREATION, domain, prioritySize);
   }
 
@@ -68,26 +73,37 @@ public class PriorityConcurrentTaskScheduler extends ConcurrentTaskScheduler imp
   }
 
   protected <T> FutureTask<T> addTask(@NonNull @NotNull FutureTask<T> task, int priority) {
-    if(!shutdown) {
+    validatePriority(priority);
+
+    boolean runnerRequired = reserveTaskSlot();
+
+    boolean queued = false;
+    try {
       logger.log(ThreadLoggingMessages.PRIORITY_SUBMIT, task.getClass().getName(), priority);
       queues.get(priority).add(task);
-      executeQueue();
+      queued = true;
+      executeReservedTaskSlot(runnerRequired);
+      return task;
+    } finally {
+      if (!queued) {
+        releaseReservedTaskSlot();
+      }
     }
-    else{
-      logger.log(ThreadLoggingMessages.SCHEDULER_SHUTDOWN, task.getClass().getName());
-      task.cancel(true);
-    }
-    return task;
   }
 
   public <T> Future<T> submit(@NonNull @NotNull Callable<T> task, int priority) {
+    rejectIfShutdown();
+    validatePriority(priority);
+
+    logger.log(ThreadLoggingMessages.SCHEDULER_SUBMIT_TASK, task.getClass());
+
     return addTask(new FutureTask<>(task), priority);
   }
 
   @Override
-  public boolean isEmpty(){
-    for(Queue<FutureTask<?>> queue:queues){
-      if(!queue.isEmpty()){
+  public boolean isEmpty() {
+    for (Queue<FutureTask<?>> queue : queues) {
+      if (!queue.isEmpty()) {
         return false;
       }
     }
@@ -95,16 +111,19 @@ public class PriorityConcurrentTaskScheduler extends ConcurrentTaskScheduler imp
   }
 
   @Override
-  protected @Nullable FutureTask<?> poll(){
-    for(Queue<FutureTask<?>> queue:queues){
+  protected @Nullable FutureTask<?> poll() {
+    for (Queue<FutureTask<?>> queue : queues) {
       FutureTask<?> task = queue.poll();
-      if(task != null){
+      if (task != null) {
         return task;
       }
     }
     return null;
   }
 
+  private void validatePriority(int priority) {
+    if (priority < 0 || priority >= queues.size()) {
+      throw new IllegalArgumentException("Priority must be between 0 and " + (queues.size() - 1));
+    }
+  }
 }
-
-

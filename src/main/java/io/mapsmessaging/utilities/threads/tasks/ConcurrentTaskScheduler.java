@@ -28,26 +28,33 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.LockSupport;
-
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.ToString;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * This class abstraction is a thread safe task scheduler that will manage the threading access of the task schedulers.
- *<br>
- *   It has no threads itself, rather, when a task is added to schedule, if it is the first task to be queued then this thread is used
- *   to execute the task and any additional tasks that have been queued while the first task was running. If this thread runs more than
- *   a configured number of tasks then it will off-load future tasks to a dedicated thread and unwind itself.
- *<br>
- *   This reduces the overall number of threads that are just waiting on queues and reduces the time for a task to be executed. The important
- *   aspect of this mechanism is that no locks are required to add or execute tasks and can be used to remove the standard
+ * <br>
+ * It has no threads itself, rather, when a task is added to schedule, if it is the first task to be queued then this thread is used
+ * to execute the task and any additional tasks that have been queued while the first task was running. If this thread runs more than
+ * a configured number of tasks then it will off-load future tasks to a dedicated thread and unwind itself.
+ * <br>
+ * This reduces the overall number of threads that are just waiting on queues and reduces the time for a task to be executed. The important
+ * aspect of this mechanism is that no locks are required to add or execute tasks and can be used to remove the standard
  * <code>
  *   synchronized(lock){
  *      // doSomething
@@ -59,379 +66,683 @@ import org.jetbrains.annotations.Nullable;
  * The <code>domain</code> field is used by tasks to ensure that the executing thread is meant to be running the code, offering the ability to ensure no code
  * by passes the task queue mechanism.
  *
- *  @since 1.0
- *  @author Matthew Buckton
- *  @version 2.0
+ * @since 1.0
+ * @author Matthew Buckton
+ * @version 2.0
  */
 @ToString
 public abstract class ConcurrentTaskScheduler implements TaskScheduler {
 
   private static final int POOL_DEPTH;
-  static{
-    int ival = Runtime.getRuntime().availableProcessors();
-    String val = System.getProperty("PoolDepth", ""+ival);
+
+  static {
+    int processorCount = Runtime.getRuntime().availableProcessors();
+    String configuredValue = System.getProperty("PoolDepth", "" + processorCount);
     try {
-      ival = Integer.parseInt(val);
-    } catch (NumberFormatException e) {
-      //Ignore here
+      processorCount = Integer.parseInt(configuredValue);
+    } catch (NumberFormatException exception) {
+      // Ignore here
     }
-    POOL_DEPTH = ival;
+    POOL_DEPTH = processorCount;
   }
 
   private static final ExecutorService executorOffloadService = Executors.newWorkStealingPool(POOL_DEPTH);
 
-  //Allow a maximum of so many tasks when the thread is external to the task scheduler
   protected static final int MAX_TASK_EXECUTION_EXTERNAL_THREAD = 10;
-  //Allow a maximum of so many tasks in a single scheduled runner execution
   protected static final int MAX_TASK_EXECUTION_SCHEDULED_THREAD = Integer.MAX_VALUE;
+
   private static final String DOMAIN = "domain";
 
   private final ThreadStateContext context;
 
   protected final Logger logger;
-
   protected final AtomicLong outstanding;
+  protected final AtomicLong maxOutstanding;
   protected final LongAdder offloadedCount;
   protected final LongAdder totalQueued;
   protected final Runnable offloadThread;
 
-  protected volatile long maxOutstanding;
   protected volatile boolean shutdown;
   protected volatile boolean terminated;
 
-
-
   protected ConcurrentTaskScheduler(@NonNull @NotNull String domain) {
     logger = LoggerFactory.getLogger(getClass());
+
     context = new ThreadStateContext();
     context.add(DOMAIN, domain);
     context.add("TaskQueue", this);
+
     outstanding = new AtomicLong(0);
-    maxOutstanding = 0;
+    maxOutstanding = new AtomicLong(0);
     totalQueued = new LongAdder();
     offloadedCount = new LongAdder();
     offloadThread = new QueueRunner();
+
     shutdown = false;
+    terminated = false;
   }
 
   @Override
-  public boolean isShutdown(){
+  public boolean isShutdown() {
     return shutdown;
   }
 
   @Override
-  public boolean isTerminated(){
+  public boolean isTerminated() {
     return terminated;
   }
 
   @Override
-  public void shutdown(){
+  public void shutdown() {
     shutdown = true;
     logger.log(ThreadLoggingMessages.SCHEDULER_SHUTTING_DOWN);
-
-    //
-    // If a Future Task is closing this scheduler then we simply clear the queue and cancel any tasks
-    // that may still be active
-    String localDomain = (String) context.get(DOMAIN);
-    var threadStateContext = ThreadLocalContext.get();
-    if(threadStateContext != null){
-      String threadDomain = (String)threadStateContext.get(DOMAIN);
-      if(localDomain != null && localDomain.equalsIgnoreCase(threadDomain)){
-        while(!isEmpty()){
-          LockSupport.parkNanos(1000000);
-        }
-        terminated = true;
-      }
-    }
+    signalTerminatedIfComplete();
   }
 
   @Override
-  public List<Runnable> shutdownNow(){
+  public List<Runnable> shutdownNow() {
     shutdown = true;
-    //
-    // If a Future Task is closing this scheduler then we simply clear the queue and cancel any tasks
-    // that may still be active
-    List<Runnable> active = new ArrayList<>();
-    String localDomain = (String) context.get(DOMAIN);
-    var threadStateContext = ThreadLocalContext.get();
-    if(threadStateContext != null){
-      String threadDomain = (String)threadStateContext.get(DOMAIN);
-      if(localDomain != null && localDomain.equalsIgnoreCase(threadDomain)){
-        // OK we are running a task that is closing this task scheduler, so we can clear out the queue
-        Runnable task = poll();
-        while (task != null) {
-          active.add(task);
-          task = poll();
-        }
-      }
+
+    List<Runnable> activeTasks = new ArrayList<>();
+    FutureTask<?> task = poll();
+
+    while (task != null) {
+      task.cancel(true);
+      activeTasks.add(task);
+      decrementOutstanding();
+      task = poll();
     }
-    terminated = true;
-    return active;
+
+    signalTerminatedIfComplete();
+    return activeTasks;
   }
 
   @Override
   public boolean awaitTermination(long timeout, @NotNull TimeUnit unit) throws InterruptedException {
-    if (Thread.interrupted()) throw new InterruptedException();
-    long nanos = unit.toNanos(timeout);
-    if (isTerminated()) return true;
-    if (nanos <= 0L) return false;
-    long deadline = System.nanoTime() + nanos;
+    if (Thread.interrupted()) {
+      throw new InterruptedException();
+    }
+
+    long remainingNanos = unit.toNanos(timeout);
+    if (isTerminated()) {
+      return true;
+    }
+    if (remainingNanos <= 0L) {
+      return false;
+    }
+
+    long deadline = System.nanoTime() + remainingNanos;
+
     synchronized (this) {
-      for (;;) {
-        if (isTerminated()) return true;
-        if (nanos <= 0L) return false;
-        long millis = TimeUnit.NANOSECONDS.toMillis(nanos);
-        wait(millis > 0L ? millis : 1L);
-        nanos = deadline - System.nanoTime();
+      while (!isTerminated()) {
+        if (remainingNanos <= 0L) {
+          return false;
+        }
+
+        long waitMillis = TimeUnit.NANOSECONDS.toMillis(remainingNanos);
+        wait(waitMillis > 0L ? waitMillis : 1L);
+        remainingNanos = deadline - System.nanoTime();
       }
+      return true;
     }
   }
 
   @NotNull
   @Override
   public <T> Future<T> submit(@NotNull Callable<T> task) {
-    if(shutdown || terminated){
-      throw new RejectedExecutionException();
-    }
+    rejectIfShutdown();
+
     logger.log(ThreadLoggingMessages.SCHEDULER_SUBMIT_TASK, task.getClass());
+
     return addTask(new FutureTask<>(task));
   }
 
   @NotNull
   @Override
   public <T> Future<T> submit(@NotNull Runnable task, T result) {
-    if(shutdown || terminated){
-      throw new RejectedExecutionException();
-    }
+    rejectIfShutdown();
+
     logger.log(ThreadLoggingMessages.SCHEDULER_SUBMIT_TASK, task.getClass());
+
     return addTask(new FutureTask<>(task, result));
   }
 
   @NotNull
   @Override
-  public  Future<?> submit(@NotNull Runnable task) {
-    if(shutdown || terminated){
-      throw new RejectedExecutionException();
-    }
+  public Future<?> submit(@NotNull Runnable task) {
+    rejectIfShutdown();
+
     logger.log(ThreadLoggingMessages.SCHEDULER_SUBMIT_TASK, task.getClass());
+
     return addTask(new FutureTask<>(task, new Object()));
   }
 
-  @SneakyThrows
   @NotNull
   @Override
-  public <T> List<Future<T>> invokeAll(@NotNull Collection<? extends Callable<T>> tasks) {
-    List<Future<T>> response = submitList(tasks);
-    List<Future<T>> waiting = new ArrayList<>(response);
-    while(!waiting.isEmpty()){
-      Future<T> future = waiting.remove(0);
-      future.get();
-    }
-    return response;
-  }
+  public <T> List<Future<T>> invokeAll(@NotNull Collection<? extends Callable<T>> tasks) throws InterruptedException {
+    rejectIfShutdown();
 
-  @SneakyThrows
-  @NotNull
-  @Override
-  public <T> List<Future<T>> invokeAll(@NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit) throws InterruptedException {
-    long totalTimeout = unit.toMillis(timeout);
-    List<Future<T>> response = submitList(tasks);
-    List<Future<T>> waiting = new ArrayList<>(response);
-    if(Thread.currentThread().isInterrupted()){
-      throw new InterruptedException();
+    List<FutureTask<T>> futureTasks = createFutureTasks(tasks);
+
+    if (isSchedulerThread()) {
+      return invokeAllInline(futureTasks);
     }
-    while(!waiting.isEmpty()){
-      Future<T> future = waiting.remove(0);
-      long delay = System.currentTimeMillis();
-      future.get(totalTimeout, TimeUnit.MILLISECONDS);
-      delay = System.currentTimeMillis() - delay;
-      totalTimeout -= delay;
-      if(totalTimeout < 0){
-        while(!waiting.isEmpty()){
-          waiting.remove(0).cancel(true);
+
+    boolean completed = false;
+    try {
+      for (FutureTask<T> futureTask : futureTasks) {
+        if (Thread.currentThread().isInterrupted()) {
+          throw new InterruptedException();
         }
-        throw new TimeoutException("Unable to complete all tasks within the timeout specified");
+
+        addTask(futureTask);
+      }
+
+      waitForAll(futureTasks);
+      completed = true;
+      return asFutureList(futureTasks);
+    } finally {
+      if (!completed) {
+        cancelIncomplete(futureTasks);
       }
     }
-    return response;
-  }
-
-  private <T> List<Future<T>> submitList(@NotNull Collection<? extends Callable<T>> tasks) {
-    if(shutdown || terminated){
-      throw new RejectedExecutionException();
-    }
-
-    List<Future<T>> response = new ArrayList<>();
-    for (Callable<T> callable : tasks) {
-      Future<T> future = submit(callable);
-      response.add(future);
-    }
-    return response;
   }
 
   @NotNull
   @Override
-  public <T> T invokeAny(@NotNull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
-    if(shutdown || terminated){
-      throw new RejectedExecutionException();
+  public <T> List<Future<T>> invokeAll(
+      @NotNull Collection<? extends Callable<T>> tasks,
+      long timeout,
+      @NotNull TimeUnit unit
+  ) throws InterruptedException {
+    rejectIfShutdown();
+
+    long timeoutNanos = unit.toNanos(timeout);
+    long deadline = System.nanoTime() + timeoutNanos;
+    List<FutureTask<T>> futureTasks = createFutureTasks(tasks);
+
+    if (timeoutNanos <= 0L) {
+      cancelIncomplete(futureTasks);
+      return asFutureList(futureTasks);
     }
-    // Since this schedule is a single ordered scheduler we will only every execute the first task
-    List<Callable<T>> callableList = new ArrayList<>(tasks);
-    Future<T> future = submit(callableList.get(0));
-    return future.get();
+
+    if (isSchedulerThread()) {
+      return invokeAllInline(futureTasks, deadline);
+    }
+
+    boolean completed = false;
+    try {
+      for (FutureTask<T> futureTask : futureTasks) {
+        if (Thread.currentThread().isInterrupted()) {
+          throw new InterruptedException();
+        }
+
+        if (deadline - System.nanoTime() <= 0L) {
+          cancelIncomplete(futureTasks);
+          completed = true;
+          return asFutureList(futureTasks);
+        }
+
+        addTask(futureTask);
+      }
+
+      for (FutureTask<T> futureTask : futureTasks) {
+        if (!futureTask.isDone()) {
+          long remainingNanos = deadline - System.nanoTime();
+          if (remainingNanos <= 0L) {
+            cancelIncomplete(futureTasks);
+            completed = true;
+            return asFutureList(futureTasks);
+          }
+
+          try {
+            futureTask.get(remainingNanos, TimeUnit.NANOSECONDS);
+          } catch (CancellationException | ExecutionException exception) {
+            // invokeAll returns futures; failures are observed through Future.get().
+          } catch (TimeoutException exception) {
+            cancelIncomplete(futureTasks);
+            completed = true;
+            return asFutureList(futureTasks);
+          }
+        }
+      }
+
+      completed = true;
+      return asFutureList(futureTasks);
+    } finally {
+      if (!completed) {
+        cancelIncomplete(futureTasks);
+      }
+    }
+  }
+
+  @NotNull
+  @Override
+  public <T> T invokeAny(@NotNull Collection<? extends Callable<T>> tasks)
+      throws InterruptedException, ExecutionException {
+    rejectIfShutdown();
+
+    if (tasks.isEmpty()) {
+      throw new IllegalArgumentException("Task collection must not be empty");
+    }
+
+    if (isSchedulerThread()) {
+      return invokeAnyInline(tasks);
+    }
+
+    List<Future<T>> futures = new ArrayList<>();
+    ExecutionException lastFailure = null;
+
+    try {
+      for (Callable<T> callable : tasks) {
+        if (Thread.currentThread().isInterrupted()) {
+          throw new InterruptedException();
+        }
+
+        FutureTask<T> futureTask = new FutureTask<>(callable);
+        futures.add(futureTask);
+        addTask(futureTask);
+
+        try {
+          return futureTask.get();
+        } catch (CancellationException exception) {
+          lastFailure = new ExecutionException(exception);
+        } catch (ExecutionException exception) {
+          lastFailure = exception;
+        }
+      }
+    } finally {
+      cancelIncomplete(futures);
+    }
+
+    if (lastFailure != null) {
+      throw lastFailure;
+    }
+    throw new ExecutionException("No task completed successfully", null);
   }
 
   @Override
-  public <T> T invokeAny(@NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-    if(shutdown || terminated){
-      throw new RejectedExecutionException();
+  public <T> T invokeAny(
+      @NotNull Collection<? extends Callable<T>> tasks,
+      long timeout,
+      @NotNull TimeUnit unit
+  ) throws InterruptedException, ExecutionException, TimeoutException {
+    rejectIfShutdown();
+
+    if (tasks.isEmpty()) {
+      throw new IllegalArgumentException("Task collection must not be empty");
     }
-    // Since this schedule is a single ordered scheduler we will only every execute the first task
-    List<Callable<T>> callableList = new ArrayList<>(tasks);
-    Future<T> future = submit(callableList.get(0));
-    return future.get(timeout, unit);
+
+    long timeoutNanos = unit.toNanos(timeout);
+    long deadline = System.nanoTime() + timeoutNanos;
+
+    if (timeoutNanos <= 0L) {
+      throw new TimeoutException();
+    }
+
+    if (isSchedulerThread()) {
+      return invokeAnyInline(tasks, deadline);
+    }
+
+    List<Future<T>> futures = new ArrayList<>();
+    ExecutionException lastFailure = null;
+
+    try {
+      for (Callable<T> callable : tasks) {
+        if (Thread.currentThread().isInterrupted()) {
+          throw new InterruptedException();
+        }
+
+        long remainingNanos = deadline - System.nanoTime();
+        if (remainingNanos <= 0L) {
+          throw new TimeoutException();
+        }
+
+        FutureTask<T> futureTask = new FutureTask<>(callable);
+        futures.add(futureTask);
+        addTask(futureTask);
+
+        remainingNanos = deadline - System.nanoTime();
+        if (remainingNanos <= 0L) {
+          throw new TimeoutException();
+        }
+
+        try {
+          return futureTask.isDone()
+              ? futureTask.get()
+              : futureTask.get(remainingNanos, TimeUnit.NANOSECONDS);
+        } catch (CancellationException exception) {
+          lastFailure = new ExecutionException(exception);
+        } catch (ExecutionException exception) {
+          lastFailure = exception;
+        }
+      }
+    } finally {
+      cancelIncomplete(futures);
+    }
+
+    if (lastFailure != null) {
+      throw lastFailure;
+    }
+    throw new ExecutionException("No task completed successfully", null);
   }
 
-  @SneakyThrows
   @Override
   public void execute(@NotNull Runnable command) {
     submit(command);
   }
 
-
-  /**
-   * @return the number of times this queue has had an offload thread take over
-   */
-  public long getOffloadCount(){
+  public long getOffloadCount() {
     return offloadedCount.sum();
   }
 
-  /**
-   * @return the maximum number of tasks that have been waiting
-   */
-  public long getMaxOutstanding(){
-    return maxOutstanding;
+  public long getMaxOutstanding() {
+    return maxOutstanding.get();
   }
 
-  /**
-   * @return the total number of tasks that have been queued
-   */
-  public long getTotalTasksQueued(){
+  public long getTotalTasksQueued() {
     return totalQueued.sum();
   }
 
-  /**
-   *
-   * @return the current number of tasks waiting for execution
-   */
-  public long getOutstanding(){
+  public long getOutstanding() {
     return outstanding.get();
   }
 
-  /**
-   * This function needs to be implemented in any class that extends this
-   *
-   * @return The next task to execute in this queue
-   */
   @SuppressWarnings("java:S1452")
   protected abstract @Nullable FutureTask<?> poll();
 
   protected abstract <T> FutureTask<T> addTask(@NonNull @NotNull FutureTask<T> task);
 
-  /**
-   * Entry point to start processing tasks off the queue when adding
-   */
-  protected void executeQueue() {
-    totalQueued.increment();
-    long count = outstanding.incrementAndGet();
-    if (count > maxOutstanding) {
-      maxOutstanding = count;
-    }
-    //If we are equal to 1 we enter the queue execution path and process our task, this will lead to scheduling a the
-    // QueueRunner if necessary
-    if (count == 1) {
-      internalExecuteQueue(MAX_TASK_EXECUTION_EXTERNAL_THREAD);
-    }
-  }
-
   protected void internalExecuteQueue(int maxTaskExecutions) {
     Map<String, String> logContext = ThreadContext.getContext();
     ThreadStateContext originalDomain = ThreadLocalContext.get();
-    if(context != null) {
-      ThreadLocalContext.set(context);
-    }
+
+    ThreadLocalContext.set(context);
+
     try {
       taskRun(maxTaskExecutions);
     } finally {
-      if(logContext != null) {
+      ThreadContext.clearMap();
+      if (logContext != null) {
         ThreadContext.putAll(logContext);
       }
-      else{
-        ThreadContext.clearMap();
-      }
-      if(originalDomain != null){
+
+      if (originalDomain != null) {
         ThreadLocalContext.set(originalDomain);
-      }
-      else{
+      } else {
         ThreadLocalContext.remove();
       }
     }
   }
 
-  /**
-   * Task Loop that runs until the queue is empty or offloaded to a dedicated thread
-   */
+  protected void rejectIfShutdown() {
+    if (shutdown || terminated) {
+      throw new RejectedExecutionException();
+    }
+  }
+
+  protected boolean reserveTaskSlot() {
+    rejectIfShutdown();
+
+    totalQueued.increment();
+
+    long count = outstanding.incrementAndGet();
+    maxOutstanding.accumulateAndGet(count, Math::max);
+
+    return count == 1;
+  }
+
+  protected void executeReservedTaskSlot(boolean runnerRequired) {
+    if (runnerRequired) {
+      internalExecuteQueue(MAX_TASK_EXECUTION_EXTERNAL_THREAD);
+    }
+  }
+
+  protected void releaseReservedTaskSlot() {
+    decrementOutstanding();
+    signalTerminatedIfComplete();
+  }
+
   private void taskRun(int maxTaskExecutions) {
-    var runnerCount = 0;
-    Runnable task = poll();
-    while (task != null) {
+    int runnerCount = 0;
+
+    while (true) {
+      Runnable task = poll();
+
+      if (task == null) {
+        if (outstanding.get() == 0) {
+          logger.log(ThreadLoggingMessages.SCHEDULER_IS_IDLE);
+          signalTerminatedIfComplete();
+          return;
+        }
+
+        LockSupport.parkNanos(1000L);
+        continue;
+      }
+
       logger.log(ThreadLoggingMessages.SCHEDULER_EXECUTING_TASK, task.getClass());
 
       task.run();
-      // Clear the interrupt for the next task
+
       Thread.interrupted();
       runnerCount++;
-      long count = outstanding.decrementAndGet();
-      //If we return a value higher than zero we still have work to be done
-      if (count != 0) {
-        //If we have hit our max task executions schedule a new instance to run
-        if (runnerCount >= maxTaskExecutions) {
-          logger.log(ThreadLoggingMessages.SCHEDULER_THREAD_OFF_LOADING);
-          offloadedCount.increment();
-          executorOffloadService.submit(offloadThread);
-          return;
-        }
-        //Otherwise, keep processing
-        task = poll();
-      } else {
+
+      long count = decrementOutstanding();
+
+      if (count == 0) {
         logger.log(ThreadLoggingMessages.SCHEDULER_IS_IDLE);
-        //We have completed all of our work
+        signalTerminatedIfComplete();
+        return;
+      }
+
+      if (runnerCount >= maxTaskExecutions) {
+        logger.log(ThreadLoggingMessages.SCHEDULER_THREAD_OFF_LOADING);
+        offloadedCount.increment();
+        executorOffloadService.submit(offloadThread);
         return;
       }
     }
   }
-  /**
-   * Class used for the off load thread
-   */
+
+  private long decrementOutstanding() {
+    long count = outstanding.decrementAndGet();
+    if (count < 0) {
+      outstanding.set(0);
+      return 0;
+    }
+    return count;
+  }
+
+  private void signalTerminatedIfComplete() {
+    if (shutdown && outstanding.get() == 0 && isEmpty()) {
+      synchronized (this) {
+        if (!terminated && outstanding.get() == 0 && isEmpty()) {
+          terminated = true;
+          notifyAll();
+        }
+      }
+    }
+  }
+
+  private boolean isSchedulerThread() {
+    ThreadStateContext threadStateContext = ThreadLocalContext.get();
+    if (threadStateContext == null) {
+      return false;
+    }
+
+    Object localDomain = context.get(DOMAIN);
+    Object threadDomain = threadStateContext.get(DOMAIN);
+
+    return localDomain != null
+        && threadDomain != null
+        && localDomain.toString().equalsIgnoreCase(threadDomain.toString());
+  }
+
+  private <T> List<FutureTask<T>> createFutureTasks(Collection<? extends Callable<T>> tasks) {
+    List<FutureTask<T>> futureTasks = new ArrayList<>();
+
+    for (Callable<T> callable : tasks) {
+      futureTasks.add(new FutureTask<>(callable));
+    }
+
+    return futureTasks;
+  }
+
+  private <T> List<Future<T>> asFutureList(List<FutureTask<T>> futureTasks) {
+    return new ArrayList<>(futureTasks);
+  }
+
+  private <T> List<Future<T>> invokeAllInline(List<FutureTask<T>> futureTasks) throws InterruptedException {
+    boolean completed = false;
+
+    try {
+      for (FutureTask<T> futureTask : futureTasks) {
+        if (Thread.currentThread().isInterrupted()) {
+          throw new InterruptedException();
+        }
+
+        futureTask.run();
+      }
+
+      completed = true;
+      return asFutureList(futureTasks);
+    } finally {
+      if (!completed) {
+        cancelIncomplete(futureTasks);
+      }
+    }
+  }
+
+  private <T> List<Future<T>> invokeAllInline(List<FutureTask<T>> futureTasks, long deadline)
+      throws InterruptedException {
+    for (FutureTask<T> futureTask : futureTasks) {
+      if (Thread.currentThread().isInterrupted()) {
+        cancelIncomplete(futureTasks);
+        throw new InterruptedException();
+      }
+
+      if (deadline - System.nanoTime() <= 0L) {
+        cancelIncomplete(futureTasks);
+        return asFutureList(futureTasks);
+      }
+
+      futureTask.run();
+    }
+
+    if (deadline - System.nanoTime() <= 0L) {
+      cancelIncomplete(futureTasks);
+    }
+
+    return asFutureList(futureTasks);
+  }
+
+  private <T> T invokeAnyInline(Collection<? extends Callable<T>> tasks)
+      throws InterruptedException, ExecutionException {
+    ExecutionException lastFailure = null;
+
+    for (Callable<T> callable : tasks) {
+      if (Thread.currentThread().isInterrupted()) {
+        throw new InterruptedException();
+      }
+
+      FutureTask<T> futureTask = new FutureTask<>(callable);
+      futureTask.run();
+
+      try {
+        return futureTask.get();
+      } catch (CancellationException exception) {
+        lastFailure = new ExecutionException(exception);
+      } catch (ExecutionException exception) {
+        lastFailure = exception;
+      }
+    }
+
+    if (lastFailure != null) {
+      throw lastFailure;
+    }
+
+    throw new ExecutionException("No task completed successfully", null);
+  }
+
+  private <T> T invokeAnyInline(Collection<? extends Callable<T>> tasks, long deadline)
+      throws InterruptedException, ExecutionException, TimeoutException {
+    ExecutionException lastFailure = null;
+
+    for (Callable<T> callable : tasks) {
+      if (Thread.currentThread().isInterrupted()) {
+        throw new InterruptedException();
+      }
+
+      if (deadline - System.nanoTime() <= 0L) {
+        throw new TimeoutException();
+      }
+
+      FutureTask<T> futureTask = new FutureTask<>(callable);
+      futureTask.run();
+
+      if (deadline - System.nanoTime() <= 0L) {
+        throw new TimeoutException();
+      }
+
+      try {
+        return futureTask.get();
+      } catch (CancellationException exception) {
+        lastFailure = new ExecutionException(exception);
+      } catch (ExecutionException exception) {
+        lastFailure = exception;
+      }
+    }
+
+    if (lastFailure != null) {
+      throw lastFailure;
+    }
+
+    throw new ExecutionException("No task completed successfully", null);
+  }
+
+  private <T> void waitForAll(List<FutureTask<T>> futureTasks) throws InterruptedException {
+    for (FutureTask<T> futureTask : futureTasks) {
+      if (!futureTask.isDone()) {
+        try {
+          futureTask.get();
+        } catch (CancellationException | ExecutionException exception) {
+          // invokeAll returns futures; failures are observed through Future.get().
+        }
+      }
+    }
+  }
+
+  private void cancelIncomplete(Collection<? extends Future<?>> futures) {
+    for (Future<?> future : futures) {
+      if (!future.isDone()) {
+        future.cancel(true);
+      }
+    }
+  }
+
   private class QueueRunner implements Runnable {
 
-    final Map<String, String> context;
+    private final Map<String, String> context;
 
-    public QueueRunner(){
+    QueueRunner() {
       context = ThreadContext.getContext();
     }
 
-    public void run(){
+    @Override
+    public void run() {
       String threadName = Thread.currentThread().getName();
       Thread.currentThread().setName("TaskQueue_OffLoad");
-      if(context != null) {
-        ThreadContext.putAll(context); // Ensure the logging thread context is copied over
+
+      ThreadContext.clearMap();
+      if (context != null) {
+        ThreadContext.putAll(context);
       }
-      else{
-        ThreadContext.clearMap();
+
+      try {
+        internalExecuteQueue(MAX_TASK_EXECUTION_SCHEDULED_THREAD);
+      } finally {
+        Thread.currentThread().setName(threadName);
       }
-      internalExecuteQueue(MAX_TASK_EXECUTION_SCHEDULED_THREAD);
-      Thread.currentThread().setName(threadName);
     }
   }
 }
