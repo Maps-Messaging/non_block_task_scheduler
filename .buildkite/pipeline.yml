@@ -4,7 +4,7 @@ steps:
       - export SONAR_TOKEN=$(buildkite-agent secret get SONAR_TOKEN)
       - export NVD_API_KEY=$(buildkite-agent secret get nvd_api_key)
       - mvn clean deploy -Psnapshot
-      - mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.7.0.6970:sonar -Dsonar.token=${SONAR_TOKEN} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+      - mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.7.0.6970:sonar -Psnapshot -Dsonar.token=${SONAR_TOKEN} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
     plugins:
       - test-collector#v1.0.0:
           files: "target/surefire-reports/*.xml"
