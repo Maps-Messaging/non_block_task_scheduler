@@ -3,7 +3,7 @@ steps:
     command:
       - export SONAR_TOKEN=$(buildkite-agent secret get SONAR_TOKEN)
       - mvn clean deploy -Psnapshot
-      - mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.7.0.6970:sonar -Psnapshot -Dsonar.token=$${SONAR_TOKEN} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+      - mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.7.0.6970:sonar -Psnapshot -Dsonar.token=$${SONAR_TOKEN} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml -Dsonar.branch.name=development
     plugins:
       - test-collector#v1.0.0:
           files: "target/surefire-reports/*.xml"
