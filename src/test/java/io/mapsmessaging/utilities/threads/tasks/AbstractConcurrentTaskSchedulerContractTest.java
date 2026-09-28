@@ -817,6 +817,122 @@ public abstract class AbstractConcurrentTaskSchedulerContractTest {
     assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
   }
 
+  @Test
+  void timedInvokeAllReturnsFailedFutureWithoutThrowing() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    List<Future<String>> futures = taskScheduler.invokeAll(
+        List.of(
+            () -> {
+              throw new IllegalStateException("boom");
+            },
+            () -> "ok"
+        ),
+        1,
+        TimeUnit.SECONDS
+    );
+
+    assertEquals(2, futures.size());
+    assertThrows(ExecutionException.class, () -> futures.get(0).get());
+    assertEquals("ok", futures.get(1).get());
+
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void schedulerThreadInterruptedInvokeAllPropagatesInterruption() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Future<Boolean> outer = taskScheduler.submit(() -> {
+      Thread.currentThread().interrupt();
+      try {
+        taskScheduler.invokeAll(List.of(() -> "one"));
+        return false;
+      } catch (InterruptedException expected) {
+        return true;
+      } finally {
+        Thread.interrupted();
+      }
+    });
+
+    assertTrue(outer.get(2, TimeUnit.SECONDS));
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void schedulerThreadInterruptedInvokeAnyPropagatesInterruption() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Future<Boolean> outer = taskScheduler.submit(() -> {
+      Thread.currentThread().interrupt();
+      try {
+        taskScheduler.invokeAny(List.of(() -> "one"));
+        return false;
+      } catch (InterruptedException expected) {
+        return true;
+      } finally {
+        Thread.interrupted();
+      }
+    });
+
+    assertTrue(outer.get(2, TimeUnit.SECONDS));
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void schedulerThreadTimedInvokeAnyExpiresAfterSlowCallable() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Future<Boolean> outer = taskScheduler.submit(() -> {
+      try {
+        taskScheduler.invokeAny(
+            List.of(() -> {
+              Thread.sleep(20);
+              return "late";
+            }),
+            1,
+            TimeUnit.MILLISECONDS
+        );
+        return false;
+      } catch (TimeoutException expected) {
+        return true;
+      }
+    });
+
+    assertTrue(outer.get(2, TimeUnit.SECONDS));
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void schedulerThreadTimedInvokeAllCancelsRemainingAfterDeadline() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Future<List<Future<String>>> outer = taskScheduler.submit(() ->
+        taskScheduler.invokeAll(
+            List.of(
+                () -> {
+                  Thread.sleep(20);
+                  return "late";
+                },
+                () -> "never"
+            ),
+            1,
+            TimeUnit.MILLISECONDS
+        )
+    );
+
+    List<Future<String>> futures = outer.get(2, TimeUnit.SECONDS);
+    assertTrue(futures.get(0).isDone());
+    assertTrue(futures.get(1).isCancelled());
+
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
   protected void awaitLatch(CountDownLatch latch) {
     try {
       assertTrue(latch.await(2, TimeUnit.SECONDS));
