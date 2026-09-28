@@ -13,6 +13,8 @@ package io.mapsmessaging.utilities.threads.tasks;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -49,5 +51,43 @@ class ThreadContextTest {
   @Test
   void singletonIsStable() {
     assertSame(ThreadLocalContext.getInstance(), ThreadLocalContext.getInstance());
+  }
+
+
+  @Test
+  void domainValidationAcceptsMatchingDomain() {
+    ThreadStateContext context = new ThreadStateContext();
+    context.add("domain", "test");
+    ThreadLocalContext.set(context);
+
+    ThreadLocalContext.validateDomain("test");
+  }
+
+  @Test
+  void domainValidationRejectsMissingContext() {
+    RuntimeException exception = assertThrows(
+        RuntimeException.class,
+        () -> ThreadLocalContext.validateDomain("test")
+    );
+
+    assertTrue(exception.getMessage().contains("Expected test"));
+  }
+
+  @Test
+  void domainValidationRejectsWrongDomain() {
+    ThreadStateContext context = new ThreadStateContext();
+    context.add("domain", "other");
+    ThreadLocalContext.set(context);
+
+    assertThrows(RuntimeException.class, () -> ThreadLocalContext.validateDomain("test"));
+  }
+
+  @Test
+  void domainValidationRejectsNonStringDomain() {
+    ThreadStateContext context = new ThreadStateContext();
+    context.add("domain", 42);
+    ThreadLocalContext.set(context);
+
+    assertThrows(RuntimeException.class, () -> ThreadLocalContext.validateDomain("test"));
   }
 }

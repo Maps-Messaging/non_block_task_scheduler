@@ -74,18 +74,18 @@ public class ThreadLocalContext {
 
   public static void checkDomain(@NonNull @NotNull String domain){
     if(DEBUG_DOMAIN) {
-      var response = false;
-      ThreadStateContext context = ThreadLocalContext.get();
-      Object check = "";
-      if (context != null) {
-        check = context.get("domain");
-        if (check instanceof String) {
-          response = domain.equals(check);
-        }
-      }
-      if (!response) {
-        throw new DomainDebuggingException("Incorrect thread domain detected! > " + check + " Expected " + domain);
-      }
+      validateDomain(domain);
+    }
+  }
+
+  static void validateDomain(@NonNull @NotNull String domain) {
+    ThreadStateContext threadStateContext = ThreadLocalContext.get();
+    Object actualDomain = threadStateContext == null ? "" : threadStateContext.get("domain");
+
+    if (!(actualDomain instanceof String) || !domain.equals(actualDomain)) {
+      throw new DomainDebuggingException(
+          "Incorrect thread domain detected! > " + actualDomain + " Expected " + domain
+      );
     }
   }
 
