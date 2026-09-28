@@ -23,6 +23,7 @@ package io.mapsmessaging.utilities.threads.tasks;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -646,6 +647,172 @@ public abstract class AbstractConcurrentTaskSchedulerContractTest {
     firstFuture.get(2, TimeUnit.SECONDS);
 
     awaitLatch(queuedRan);
+
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void executeRunsCommand() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+    CountDownLatch ran = new CountDownLatch(1);
+
+    taskScheduler.execute(ran::countDown);
+
+    assertTrue(ran.await(2, TimeUnit.SECONDS));
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void awaitTerminationPropagatesInterruptedState() {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThrows(
+          InterruptedException.class,
+          () -> taskScheduler.awaitTermination(1, TimeUnit.SECONDS)
+      );
+    } finally {
+      Thread.interrupted();
+      taskScheduler.shutdownNow();
+    }
+  }
+
+  @Test
+  void schedulerThreadInvokeAllRunsInline() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Future<List<String>> outer = taskScheduler.submit(() -> {
+      List<Future<String>> futures = taskScheduler.invokeAll(List.of(
+          () -> "one",
+          () -> "two"
+      ));
+      return List.of(futures.get(0).get(), futures.get(1).get());
+    });
+
+    assertEquals(List.of("one", "two"), outer.get(2, TimeUnit.SECONDS));
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void schedulerThreadTimedInvokeAllRunsInline() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Future<List<String>> outer = taskScheduler.submit(() -> {
+      List<Future<String>> futures = taskScheduler.invokeAll(
+          List.of(() -> "one", () -> "two"),
+          1,
+          TimeUnit.SECONDS
+      );
+      return List.of(futures.get(0).get(), futures.get(1).get());
+    });
+
+    assertEquals(List.of("one", "two"), outer.get(2, TimeUnit.SECONDS));
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void schedulerThreadInvokeAnyRunsInlineAfterFailure() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Future<String> outer = taskScheduler.submit(() -> taskScheduler.invokeAny(List.of(
+        () -> {
+          throw new IllegalStateException("first failed");
+        },
+        () -> "second"
+    )));
+
+    assertEquals("second", outer.get(2, TimeUnit.SECONDS));
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void schedulerThreadTimedInvokeAnyRunsInline() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Future<String> outer = taskScheduler.submit(() -> taskScheduler.invokeAny(
+        List.of(() -> "result"),
+        1,
+        TimeUnit.SECONDS
+    ));
+
+    assertEquals("result", outer.get(2, TimeUnit.SECONDS));
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void timedInvokeAnyReturnsSuccessAfterFailure() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    String result = taskScheduler.invokeAny(
+        List.of(
+            () -> {
+              throw new IllegalStateException("first failed");
+            },
+            () -> "second"
+        ),
+        1,
+        TimeUnit.SECONDS
+    );
+
+    assertEquals("second", result);
+    taskScheduler.shutdown();
+    assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+  }
+
+  @Test
+  void interruptedTimedInvokeAllCancelsCreatedFutures() {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThrows(
+          InterruptedException.class,
+          () -> taskScheduler.invokeAll(List.of(() -> "one"), 1, TimeUnit.SECONDS)
+      );
+    } finally {
+      Thread.interrupted();
+      taskScheduler.shutdownNow();
+    }
+  }
+
+  @Test
+  void interruptedTimedInvokeAnyPropagatesInterruption() {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThrows(
+          InterruptedException.class,
+          () -> taskScheduler.invokeAny(List.of(() -> "one"), 1, TimeUnit.SECONDS)
+      );
+    } finally {
+      Thread.interrupted();
+      taskScheduler.shutdownNow();
+    }
+  }
+
+  @Test
+  void threadLocalContextIsRestoredAfterExecution() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+    ThreadStateContext original = new ThreadStateContext();
+    original.add("original", "value");
+    ThreadLocalContext.set(original);
+
+    try {
+      Future<?> future = taskScheduler.submit(() -> assertFalse(ThreadLocalContext.get() == original));
+      future.get(2, TimeUnit.SECONDS);
+
+      assertSame(original, ThreadLocalContext.get());
+    } finally {
+      ThreadLocalContext.remove();
+      taskScheduler.shutdown();
+    }
 
     assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
   }
