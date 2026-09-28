@@ -70,16 +70,22 @@ class SimpleTaskSchedulerTest {
   void periodicTasksExecuteAndCanBeCancelled() throws Exception {
     CountDownLatch fixedRateRuns = new CountDownLatch(2);
     ScheduledFuture<?> fixedRate =
-        scheduler.scheduleAtFixedRate(fixedRateRuns::countDown, 0, 1, TimeUnit.MILLISECONDS);
+        scheduler.scheduleAtFixedRate(fixedRateRuns::countDown, 0, 10, TimeUnit.MILLISECONDS);
 
     CountDownLatch fixedDelayRuns = new CountDownLatch(2);
     ScheduledFuture<?> fixedDelay =
-        scheduler.scheduleWithFixedDelay(fixedDelayRuns::countDown, 0, 1, TimeUnit.MILLISECONDS);
+        scheduler.scheduleWithFixedDelay(fixedDelayRuns::countDown, 0, 10, TimeUnit.MILLISECONDS);
 
-    assertTrue(fixedRateRuns.await(2, TimeUnit.SECONDS));
-    assertTrue(fixedDelayRuns.await(2, TimeUnit.SECONDS));
-    assertTrue(fixedRate.cancel(false));
-    assertTrue(fixedDelay.cancel(false));
+    try {
+      assertTrue(fixedRateRuns.await(2, TimeUnit.SECONDS));
+      assertTrue(fixedDelayRuns.await(2, TimeUnit.SECONDS));
+    } finally {
+      fixedRate.cancel(false);
+      fixedDelay.cancel(false);
+    }
+
+    assertTrue(fixedRate.isCancelled());
+    assertTrue(fixedDelay.isCancelled());
   }
 
   @Test
