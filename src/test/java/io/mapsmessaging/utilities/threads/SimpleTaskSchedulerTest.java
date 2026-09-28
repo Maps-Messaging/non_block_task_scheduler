@@ -117,6 +117,11 @@ class SimpleTaskSchedulerTest {
     future.get(2, TimeUnit.SECONDS);
 
     assertTrue(scheduler.getTotalScheduled() > scheduledBefore);
+
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+    while (scheduler.getTotalExecuted() <= executedBefore && System.nanoTime() < deadline) {
+      Thread.sleep(1);
+    }
     assertTrue(scheduler.getTotalExecuted() > executedBefore);
     assertTrue(scheduler.getDepth() >= 0);
     assertFalse(scheduler.isShutdown());
