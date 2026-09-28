@@ -272,39 +272,14 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
 
     boolean completed = false;
     try {
-      for (FutureTask<T> futureTask : futureTasks) {
-        if (Thread.currentThread().isInterrupted()) {
-          throw new InterruptedException();
-        }
-
-        if (deadline - System.nanoTime() <= 0L) {
-          cancelIncomplete(futureTasks);
-          completed = true;
-          return asFutureList(futureTasks);
-        }
-
-        addTask(futureTask);
+      if (!submitBeforeDeadline(futureTasks, deadline)) {
+        cancelIncomplete(futureTasks);
+        completed = true;
+        return asFutureList(futureTasks);
       }
 
-      for (FutureTask<T> futureTask : futureTasks) {
-        if (!futureTask.isDone()) {
-          long remainingNanos = deadline - System.nanoTime();
-          if (remainingNanos <= 0L) {
-            cancelIncomplete(futureTasks);
-            completed = true;
-            return asFutureList(futureTasks);
-          }
-
-          try {
-            futureTask.get(remainingNanos, TimeUnit.NANOSECONDS);
-          } catch (CancellationException | ExecutionException exception) {
-            // invokeAll returns futures; failures are observed through Future.get().
-          } catch (TimeoutException exception) {
-            cancelIncomplete(futureTasks);
-            completed = true;
-            return asFutureList(futureTasks);
-          }
-        }
+      if (!waitForAllBeforeDeadline(futureTasks, deadline)) {
+        cancelIncomplete(futureTasks);
       }
 
       completed = true;
@@ -374,57 +349,21 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
     }
 
     long timeoutNanos = unit.toNanos(timeout);
-    long deadline = System.nanoTime() + timeoutNanos;
-
     if (timeoutNanos <= 0L) {
       throw new TimeoutException();
     }
 
+    long deadline = System.nanoTime() + timeoutNanos;
     if (isSchedulerThread()) {
       return invokeAnyInline(tasks, deadline);
     }
 
     List<Future<T>> futures = new ArrayList<>();
-    ExecutionException lastFailure = null;
-
     try {
-      for (Callable<T> callable : tasks) {
-        if (Thread.currentThread().isInterrupted()) {
-          throw new InterruptedException();
-        }
-
-        long remainingNanos = deadline - System.nanoTime();
-        if (remainingNanos <= 0L) {
-          throw new TimeoutException();
-        }
-
-        FutureTask<T> futureTask = new FutureTask<>(callable);
-        futures.add(futureTask);
-        addTask(futureTask);
-
-        remainingNanos = deadline - System.nanoTime();
-        if (remainingNanos <= 0L) {
-          throw new TimeoutException();
-        }
-
-        try {
-          return futureTask.isDone()
-              ? futureTask.get()
-              : futureTask.get(remainingNanos, TimeUnit.NANOSECONDS);
-        } catch (CancellationException exception) {
-          lastFailure = new ExecutionException(exception);
-        } catch (ExecutionException exception) {
-          lastFailure = exception;
-        }
-      }
+      return invokeAnyQueued(tasks, deadline, futures);
     } finally {
       cancelIncomplete(futures);
     }
-
-    if (lastFailure != null) {
-      throw lastFailure;
-    }
-    throw new ExecutionException("No task completed successfully", null);
   }
 
   @Override
@@ -590,6 +529,102 @@ public abstract class ConcurrentTaskScheduler implements TaskScheduler {
 
   private <T> List<Future<T>> asFutureList(List<FutureTask<T>> futureTasks) {
     return new ArrayList<>(futureTasks);
+  }
+
+  private <T> boolean submitBeforeDeadline(List<FutureTask<T>> futureTasks, long deadline)
+      throws InterruptedException {
+    for (FutureTask<T> futureTask : futureTasks) {
+      checkInterrupted();
+      if (deadlineExpired(deadline)) {
+        return false;
+      }
+      addTask(futureTask);
+    }
+    return true;
+  }
+
+  private <T> boolean waitForAllBeforeDeadline(List<FutureTask<T>> futureTasks, long deadline)
+      throws InterruptedException {
+    for (FutureTask<T> futureTask : futureTasks) {
+      if (!futureTask.isDone() && !waitForFutureBeforeDeadline(futureTask, deadline)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private <T> boolean waitForFutureBeforeDeadline(FutureTask<T> futureTask, long deadline)
+      throws InterruptedException {
+    long remainingNanos = deadline - System.nanoTime();
+    if (remainingNanos <= 0L) {
+      return false;
+    }
+
+    try {
+      futureTask.get(remainingNanos, TimeUnit.NANOSECONDS);
+      return true;
+    } catch (CancellationException | ExecutionException exception) {
+      return true;
+    } catch (TimeoutException exception) {
+      return false;
+    }
+  }
+
+  private <T> T invokeAnyQueued(
+      Collection<? extends Callable<T>> tasks,
+      long deadline,
+      List<Future<T>> futures
+  ) throws InterruptedException, ExecutionException, TimeoutException {
+    ExecutionException lastFailure = null;
+
+    for (Callable<T> callable : tasks) {
+      checkInterrupted();
+      ensureBeforeDeadline(deadline);
+
+      FutureTask<T> futureTask = new FutureTask<>(callable);
+      futures.add(futureTask);
+      addTask(futureTask);
+
+      try {
+        return getBeforeDeadline(futureTask, deadline);
+      } catch (CancellationException exception) {
+        lastFailure = new ExecutionException(exception);
+      } catch (ExecutionException exception) {
+        lastFailure = exception;
+      }
+    }
+
+    if (lastFailure != null) {
+      throw lastFailure;
+    }
+    throw new ExecutionException("No task completed successfully", null);
+  }
+
+  private <T> T getBeforeDeadline(FutureTask<T> futureTask, long deadline)
+      throws InterruptedException, ExecutionException, TimeoutException {
+    long remainingNanos = deadline - System.nanoTime();
+    if (remainingNanos <= 0L) {
+      throw new TimeoutException();
+    }
+    return futureTask.isDone()
+        ? futureTask.get()
+        : futureTask.get(remainingNanos, TimeUnit.NANOSECONDS);
+  }
+
+  private void checkInterrupted() throws InterruptedException {
+    if (Thread.currentThread().isInterrupted()) {
+      throw new InterruptedException();
+    }
+  }
+
+  private void ensureBeforeDeadline(long deadline) throws TimeoutException {
+    if (deadlineExpired(deadline)) {
+      throw new TimeoutException();
+    }
+  }
+
+  private boolean deadlineExpired(long deadline) {
+    return deadline - System.nanoTime() <= 0L;
   }
 
   private <T> List<Future<T>> invokeAllInline(List<FutureTask<T>> futureTasks) throws InterruptedException {
