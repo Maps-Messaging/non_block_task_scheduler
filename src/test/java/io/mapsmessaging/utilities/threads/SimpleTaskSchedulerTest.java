@@ -92,8 +92,8 @@ class SimpleTaskSchedulerTest {
     List<Future<Integer>> timed = scheduler.invokeAll(tasks, 2, TimeUnit.SECONDS);
     assertEquals(List.of(1, 2, 3), List.of(timed.get(0).get(), timed.get(1).get(), timed.get(2).get()));
 
-    assertEquals(1, scheduler.invokeAny(tasks));
-    assertEquals(1, scheduler.invokeAny(tasks, 2, TimeUnit.SECONDS));
+    assertTrue(List.of(1, 2, 3).contains(scheduler.invokeAny(tasks)));
+    assertTrue(List.of(1, 2, 3).contains(scheduler.invokeAny(tasks, 2, TimeUnit.SECONDS)));
   }
 
   @Test
