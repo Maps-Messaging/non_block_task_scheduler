@@ -29,11 +29,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * This class implements a single concurrent task queue
+ * This class implements a single concurrent task queue.
  *
- *  @since 1.0
- *  @author Matthew Buckton
- *  @version 2.0
+ * @since 1.0
+ * @author Matthew Buckton
+ * @version 2.0
  */
 @ToString
 public class SingleConcurrentTaskScheduler extends ConcurrentTaskScheduler {
@@ -41,7 +41,7 @@ public class SingleConcurrentTaskScheduler extends ConcurrentTaskScheduler {
   private final Queue<FutureTask<?>> queue;
 
   /**
-   * Constructs a single queue based task queue
+   * Constructs a single queue based task queue.
    *
    * @param domain a unique name defining the domain this task queue manages
    */
@@ -50,27 +50,30 @@ public class SingleConcurrentTaskScheduler extends ConcurrentTaskScheduler {
     queue = new ConcurrentLinkedQueue<>();
   }
 
+  @Override
   protected <T> FutureTask<T> addTask(@NonNull @NotNull FutureTask<T> task) {
-    if(!shutdown) {
+    boolean runnerRequired = reserveTaskSlot();
+
+    boolean queued = false;
+    try {
       queue.add(task);
-      executeQueue();
+      queued = true;
+      executeReservedTaskSlot(runnerRequired);
+      return task;
+    } finally {
+      if (!queued) {
+        releaseReservedTaskSlot();
+      }
     }
-    else{
-      task.cancel(true); // Mark it as cancelled
-    }
-    return task;
   }
 
   @Override
-  public boolean isEmpty(){
+  public boolean isEmpty() {
     return queue.isEmpty();
   }
 
   @Override
-  protected @Nullable FutureTask<?> poll(){
+  protected @Nullable FutureTask<?> poll() {
     return queue.poll();
   }
-
 }
-
-

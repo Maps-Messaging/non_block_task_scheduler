@@ -1,7 +1,7 @@
 /*
  *
  *  Copyright [ 2020 - 2024 ] Matthew Buckton
- *  Copyright [ 2024 - 2025 ] MapsMessaging B.V.
+ *  Copyright [ 2024 - 2026 ] MapsMessaging B.V.
  *
  *  Licensed under the Apache License, Version 2.0 with the Commons Clause
  *  (the "License"); you may not use this file except in compliance with the License.
@@ -20,10 +20,69 @@
 
 package io.mapsmessaging.utilities.threads.tasks;
 
-class SingleConcurrentTaskSchedulerTest extends ConcurrentTaskSchedulerTest {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Test;
+
+class SingleConcurrentTaskSchedulerTest extends AbstractConcurrentTaskSchedulerContractTest {
 
   @Override
   protected ConcurrentTaskScheduler create() {
-    return new SingleConcurrentTaskScheduler("Test");
+    return new SingleConcurrentTaskScheduler("single-test");
+  }
+
+  @Test
+  void queuedTasksRunInFifoOrder() throws Exception {
+    ConcurrentTaskScheduler taskScheduler = create();
+
+    CountDownLatch runningStarted = new CountDownLatch(1);
+    CountDownLatch releaseRunningTask = new CountDownLatch(1);
+    CountDownLatch queuedTasksRan = new CountDownLatch(3);
+    List<Integer> order = new CopyOnWriteArrayList<>();
+
+    ExecutorService caller = Executors.newSingleThreadExecutor();
+    try {
+      Future<?> callerFuture = caller.submit(() ->
+          taskScheduler.submit(() -> {
+            runningStarted.countDown();
+            awaitLatch(releaseRunningTask);
+          })
+      );
+
+      assertTrue(runningStarted.await(2, TimeUnit.SECONDS));
+
+      taskScheduler.submit(() -> {
+        order.add(1);
+        queuedTasksRan.countDown();
+      });
+      taskScheduler.submit(() -> {
+        order.add(2);
+        queuedTasksRan.countDown();
+      });
+      taskScheduler.submit(() -> {
+        order.add(3);
+        queuedTasksRan.countDown();
+      });
+
+      releaseRunningTask.countDown();
+
+      assertTrue(queuedTasksRan.await(2, TimeUnit.SECONDS));
+      assertEquals(List.of(1, 2, 3), order);
+
+      taskScheduler.shutdown();
+      assertTrue(taskScheduler.awaitTermination(2, TimeUnit.SECONDS));
+
+      callerFuture.get(2, TimeUnit.SECONDS);
+    } finally {
+      caller.shutdownNow();
+    }
   }
 }
